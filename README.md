@@ -186,7 +186,3 @@ Health check.
 
 Detailed build log with design decisions, issues, and verification:
 → [`BUILD-LOG-PHASE1.md`](BUILD-LOG-PHASE1.md)
-
-## License
-
-MIT
