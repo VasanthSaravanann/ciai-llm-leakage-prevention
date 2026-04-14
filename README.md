@@ -7,9 +7,9 @@
 | Phase | Component | Status |
 |-------|-----------|--------|
 | **Phase 1** | Detection Engine + FastAPI API + Tests | ✅ Complete |
-| Phase 2 | SQLite Logging + Email Alerts | Planned |
-| Phase 3 | mitmproxy Interceptor | Planned |
-| Phase 4 | Integration + Dashboard | Planned |
+| **Phase 2** | SQLite Logging + Email Alerts | ✅ Complete |
+| **Phase 3** | mitmproxy Interceptor | ✅ Complete |
+| **Phase 4** | Integration + Dashboard | ✅ Complete |
 | Phase 5 | Docker Packaging + Docs | Planned |
 
 ## What It Detects
@@ -82,11 +82,18 @@ curl -X POST http://localhost:8000/detect \
 ```
 
 ### Run Tests
+
+#### Unit Tests (34 tests)
 ```bash
 pytest tests/test_detection.py -v
 ```
 
-**34/34 tests passing** — covers Luhn, Aadhaar, PAN, credit cards, API keys, severity, redaction, and API endpoints.
+#### Security Audit (45 evasion tests)
+```bash
+python tests/security_audit.py
+```
+
+For detailed test categories and the **Bypass Rate Journey**, see [TESTING.md](TESTING.md).
 
 ## Project Structure
 

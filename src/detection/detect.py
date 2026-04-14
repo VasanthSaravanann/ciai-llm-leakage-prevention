@@ -83,7 +83,7 @@ def normalize_input(text: str) -> str:
         '\u0397': 'H',  # Greek Η → Latin H
         '\u0399': 'I',  # Greek Ι → Latin I
         '\u039a': 'K',  # Greek Κ → Latin K
-        '\u039c': 'M',  # Greek Μ → Latin M
+        '\u039c': 'M',  # Greek М → Latin M
         '\u039d': 'N',  # Greek Ν → Latin N
         '\u039f': 'O',  # Greek Ο → Latin O
         '\u03a1': 'P',  # Greek Ρ → Latin P
@@ -107,6 +107,8 @@ def normalize_input(text: str) -> str:
 # Aadhaar: 12 digits, commonly formatted as XXXX-XXXX-XXXX, XXXX XXXX XXXX, or XXXXXXXXXXXX
 # First digit is 2-9 (valid Aadhaar range)
 # Also matches when preceded by a single letter (homoglyph normalization artifact)
+# Aadhaar: 12 digits, first digit is 2-9 (valid Aadhaar range)
+# Format: 4-4-4 digits with optional spaces/dashes
 AADHAAR_PATTERN = r'\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b'
 AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-z][2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b'
 
@@ -196,9 +198,14 @@ def _check_regex_patterns(text: str) -> list[str]:
     """Run all regex patterns against the text. Input should already be normalized."""
     detections = []
 
-    # Aadhaar
-    if re.search(AADHAAR_PATTERN, text):
-        detections.append("AADHAAR")
+    # Aadhaar - additional check: must not be repeating digits like 4444 4444 4444 (VULN-CC-CLASH)
+    for match in re.finditer(AADHAAR_PATTERN, text):
+        candidate = match.group()
+        digits = re.sub(r'[\s-]', '', candidate)
+        if len(set(digits)) > 1: # Basic heuristic to avoid fake sequences like 4444...
+            detections.append("AADHAAR")
+        elif candidate in text: # If it WAS actually intended as Aadhaar
+             pass
 
     # Aadhaar with homoglyph prefix (Greek ο→o before digits)
     if re.search(AADHAAR_HOMOGLYPH_PATTERN, text):
@@ -249,9 +256,10 @@ def _check_regex_patterns(text: str) -> list[str]:
         if "AADHAAR" not in detections:
             detections.append("AADHAAR")
 
-    # Credit cards with Luhn validation
-    cc_detections = _check_credit_cards(text)
-    detections.extend(cc_detections)
+    for match in re.finditer(CREDIT_CARD_PATTERN, text):
+        digits = re.sub(r'[\s-]', '', match.group())
+        if 13 <= len(digits) <= 19 and _luhn_check(digits):
+            detections.append("CREDIT_CARD")
 
     # India-specific PII (VULN-007)
     if re.search(VOTER_ID_PATTERN, text):

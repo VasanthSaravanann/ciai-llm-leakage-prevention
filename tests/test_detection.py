@@ -190,10 +190,14 @@ class TestAPIEndpoints:
         from fastapi.testclient import TestClient
         from src.api.main import app
         from src.logging.db import init_db
+        from src.config import settings
         import asyncio
 
         asyncio.run(init_db())
-        return TestClient(app)
+
+        # Set test API key so auth passes
+        settings.API_KEY = "test-key"
+        return TestClient(app, headers={"X-API-KEY": "test-key"})
 
     def test_health(self, client):
         resp = client.get("/health")

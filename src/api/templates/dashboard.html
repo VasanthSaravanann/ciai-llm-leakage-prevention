@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CIAI Audit Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #007BFF;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+        }
+
+        header {
+            background-color: var(--dark-color);
+            color: white;
+            padding: 1rem 2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 8px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f1f1f1;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        .severity-high { background-color: #f8d7da; color: #721c24; }
+        .severity-medium { background-color: #fff3cd; color: #856404; }
+        .severity-low { background-color: #d4edda; color: #155724; }
+        .severity-none { background-color: #e2e3e5; color: #383d41; }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 4px;
+            margin-right: 5px;
+            text-transform: uppercase;
+        }
+
+        .badge-block { background-color: var(--danger-color); color: white; }
+        .badge-redact { background-color: var(--warning-color); color: var(--dark-color); }
+        .badge-pass { background-color: var(--success-color); color: white; }
+
+        .redacted-text {
+            max-width: 400px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>CIAI Audit Dashboard</h1>
+            <p>Monitoring LLM Data Leakage in Real-time</p>
+        </header>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User ID</th>
+                    <th>Severity</th>
+                    <th>Action</th>
+                    <th>Detections</th>
+                    <th>Prompt Preview</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr class="severity-{{ log.severity }}">
+                    <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ log.user_id }}</td>
+                    <td>
+                        <span class="badge">{{ log.severity.upper() }}</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{{ log.action }}">{{ log.action.upper() }}</span>
+                    </td>
+                    <td>
+                        {% for detection in log.detection_types %}
+                            <span class="badge" style="background: #e9ecef; color: #495057;">{{ detection }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        <span class="redacted-text" title="{{ log.redacted_prompt }}">{{ log.redacted_prompt }}</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if not logs %}
+        <div style="text-align: center; padding: 40px; background: white; border-radius: 8px;">
+            <p>No audit logs found. Requests are clean or the proxy is not running.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

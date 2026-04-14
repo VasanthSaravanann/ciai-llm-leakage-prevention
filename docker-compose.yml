@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  ciai-api:
+    build: .
+    container_name: ciai-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ciai_audit.db:/app/ciai_audit.db
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite:///./ciai_audit.db
+    restart: always
+
+networks:
+  default:
+    name: ciai-network
