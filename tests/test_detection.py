@@ -189,6 +189,10 @@ class TestAPIEndpoints:
     def client(self):
         from fastapi.testclient import TestClient
         from src.api.main import app
+        from src.logging.db import init_db
+        import asyncio
+
+        asyncio.run(init_db())
         return TestClient(app)
 
     def test_health(self, client):
@@ -213,7 +217,7 @@ class TestAPIEndpoints:
         resp = client.post("/detect", json={"text": ""})
         assert resp.status_code == 422
 
-    def test_log_placeholder(self, client):
+    def test_log_valid_entry(self, client):
         resp = client.post("/log", json={
             "user_id": "test-user",
             "redacted_prompt": "Hello [REDACTED]",
@@ -221,4 +225,6 @@ class TestAPIEndpoints:
             "action": "redact"
         })
         assert resp.status_code == 200
-        assert resp.json()["status"] == "logged (placeholder – Phase 2)"
+        data = resp.json()
+        assert data["status"] == "logged"
+        assert data["id"] is not None
