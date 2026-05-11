@@ -4,8 +4,11 @@ from sqlalchemy.orm import sessionmaker
 
 from src.config import settings
 
+# Use synchronous SQLite driver instead of aiosqlite
+DATABASE_URL = settings.DATABASE_URL.replace("sqlite+aiosqlite:///", "sqlite:///")
+
 engine = create_engine(
-    settings.DATABASE_URL, connect_args={"check_same_thread": False}
+    DATABASE_URL, connect_args={"check_same_thread": False}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
