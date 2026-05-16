@@ -527,7 +527,7 @@ def _redact_text(text: str, presidio_results: list[RecognizerResult]) -> str:
 # Main detection function
 # ---------------------------------------------------------------------------
 
-def detect_sensitive(text: str) -> dict:
+def detect_sensitive(text: str, _depth: int = 0) -> dict:
     """
     Analyze text for sensitive data.
 
@@ -577,7 +577,8 @@ def detect_sensitive(text: str) -> dict:
         presidio_results = []
 
     # Step 4: Base64-encoded PII detection (Critical: VULN-003)
-    b64_detections = _detect_base64_pii(normalized)
+    # Pass recursion depth to avoid DoS via nested/base64 payloads
+    b64_detections = _detect_base64_pii(normalized, _depth=_depth)
     for d in b64_detections:
         if d not in detections:
             detections.append(d)
@@ -628,7 +629,23 @@ def _detect_base64_pii(text: str) -> list[str]:
     """
     detections = []
 
+    # Protect against deeply nested base64 (DoS) by enforcing a recursion cap.
+    try:
+        from src.config import settings
+        max_depth = settings.MAX_B64_RECURSION
+    except Exception:
+        max_depth = 3
+
+    if _depth >= max_depth:
+        return []
+
+    # Limit number of base64 segments we attempt to decode per request
+    max_segments = 10
+    count = 0
     for match in _BASE64_PATTERN.finditer(text):
+        if count >= max_segments:
+            break
+        count += 1
         try:
             encoded = match.group()
             # Try to decode
@@ -637,7 +654,7 @@ def _detect_base64_pii(text: str) -> list[str]:
             if len(decoded) < 4:
                 continue
             # Recursively scan decoded content
-            sub_result = detect_sensitive(decoded)
+            sub_result = detect_sensitive(decoded, _depth=_depth + 1)
             if sub_result['detections']:
                 for d in sub_result['detections']:
                     prefixed = f"BASE64_{d}"

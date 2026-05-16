@@ -7,20 +7,25 @@ class Settings(BaseSettings):
     API_TITLE: str = "CIAI – LLM Data Leakage Prevention"
     API_VERSION: str = "0.1.0"
     API_KEY_NAME: str = "X-API-KEY"
-    API_KEY: str = "ciai-dev-key"  # Change this in production!
+    # In production, set API_KEY via the environment variable `API_KEY` or .env file
+    API_KEY: str = os.getenv("API_KEY", "ciai-dev-key")
+
+    # Request limits / hardening
+    MAX_REQUEST_SIZE: int = int(os.getenv("MAX_REQUEST_SIZE", "100000"))
+    MAX_B64_RECURSION: int = int(os.getenv("MAX_B64_RECURSION", "3"))
 
     # Database settings
-    DATABASE_URL: str = "sqlite:///./data/ciai_audit.db"
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/ciai_audit.db")
 
     # SMTP settings for alerts
-    SMTP_SERVER: str = "smtp.gmail.com"
-    SMTP_PORT: int = 587
+    SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASS: str = os.getenv("SMTP_PASS", "")
     ALERT_RECIPIENT: str = os.getenv("ALERT_RECIPIENT", "")
 
     # Detection settings
-    PRESIDIO_MODEL: str = "en_core_web_sm"
+    PRESIDIO_MODEL: str = os.getenv("PRESIDIO_MODEL", "en_core_web_sm")
 
     class Config:
         env_file = ".env"

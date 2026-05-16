@@ -1,0 +1,5 @@
+# Development-only requirements used by CI and local testing
+greenlet>=2.0.0
+pre-commit>=3.4.0
+detect-secrets>=1.4.0
+pytest-cov>=4.0.0

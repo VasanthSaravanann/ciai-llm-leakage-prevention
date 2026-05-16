@@ -172,6 +172,15 @@ def _log_detection_background(result: dict):
 async def detect(request: Request, req: DetectRequest, background_tasks: BackgroundTasks):
     """Analyze text for sensitive data (PII, secrets, India-specific IDs)."""
     try:
+        # Enforce Content-Length/request size limits early to avoid large payload DoS
+        try:
+            content_length = request.headers.get("content-length")
+            if content_length is not None and int(content_length) > settings.MAX_REQUEST_SIZE:
+                raise HTTPException(status_code=413, detail="Payload too large")
+        except ValueError:
+            # malformed header — reject
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
+
         result = detect_sensitive(req.text)
 
         # Phase 4: Auto-log detection events in background
