@@ -4,15 +4,39 @@ from sqlalchemy.orm import sessionmaker
 
 from src.config import settings
 
-# Use synchronous SQLite driver instead of aiosqlite
-DATABASE_URL = settings.DATABASE_URL.replace("sqlite+aiosqlite:///", "sqlite:///")
+# Respect the DATABASE_URL provided in settings. For SQLite keep same-thread disabled.
+DATABASE_URL = settings.DATABASE_URL
 
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
-)
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
+
+def _ensure_sqlite_schema():
+    """Ensure SQLite schema includes newer columns when running against an existing DB file."""
+    if not DATABASE_URL.startswith("sqlite"):
+        return
+
+    # Use SQLite PRAGMA to inspect columns
+    from sqlalchemy import text
+
+    with engine.connect() as conn:
+        res = conn.execute(text("PRAGMA table_info('audit_log')"))
+        cols = [row[1] for row in res.fetchall()]
+        if "redacted_fingerprint" not in cols:
+            # Add the missing column (best-effort migration)
+            conn.execute(text("ALTER TABLE audit_log ADD COLUMN redacted_fingerprint VARCHAR(128)"))
+            conn.commit()
+
+
+# Create tables if missing and ensure schema compatibility for SQLite
+Base.metadata.create_all(bind=engine)
+_ensure_sqlite_schema()
 
 
 def get_db():

@@ -148,13 +148,14 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("dashboard.html", {"request": request, "logs": logs})
 
 
-def _log_detection_background(result: dict):
+def _log_detection_background(result: dict, fingerprint: str | None = None):
     """Background task to log detection events without slowing down the API."""
     db = SessionLocal()
     try:
         db_log = AuditLog(
             user_id="direct-api",
             redacted_prompt=sanitize(result["redacted_text"]),
+            redacted_fingerprint=fingerprint,
             detection_types=result["detections"],
             action="block" if result["block"] else "redact",
             severity=result["severity"]
@@ -181,11 +182,16 @@ async def detect(request: Request, req: DetectRequest, background_tasks: Backgro
             # malformed header — reject
             raise HTTPException(status_code=400, detail="Invalid Content-Length header")
 
+        # Compute fingerprint of the incoming text (sha256 hex) for auditing
+        import hashlib
+
+        fingerprint = hashlib.sha256(req.text.encode("utf-8", errors="ignore")).hexdigest()
+
         result = detect_sensitive(req.text)
 
         # Phase 4: Auto-log detection events in background
         if result["detections"]:
-            background_tasks.add_task(_log_detection_background, result)
+            background_tasks.add_task(_log_detection_background, result, fingerprint)
 
         return DetectResponse(**result)
     except Exception as e:
@@ -207,10 +213,16 @@ async def log_event(
         sanitized_prompt = sanitize(req.redacted_prompt)
         sanitized_response = sanitize(req.llm_response_redacted) if req.llm_response_redacted else None
 
+        # Compute fingerprint of the provided redacted prompt for lookup (do not store raw original)
+        import hashlib
+
+        prompt_fingerprint = hashlib.sha256(sanitized_prompt.encode("utf-8", errors="ignore")).hexdigest()
+
         # 1. Synchronous insert (returns ID immediately)
         db_log = AuditLog(
             user_id=sanitized_user_id,
             redacted_prompt=sanitized_prompt,
+            redacted_fingerprint=prompt_fingerprint,
             detection_types=req.detection_types,
             action=req.action,
             severity=req.severity,

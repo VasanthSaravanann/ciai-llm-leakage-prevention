@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, JSON
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Text
 
 from .database import Base
 
@@ -10,8 +10,10 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     user_id = Column(String, index=True)
-    redacted_prompt = Column(String)
+    # Store only redacted prompt text (no raw prompt). Keep fingerprint for lookup.
+    redacted_prompt = Column(Text)
+    redacted_fingerprint = Column(String(128), index=True)
     detection_types = Column(JSON)  # Store list of strings
     action = Column(String)  # "block" or "redact" or "pass"
     severity = Column(String)
-    llm_response_redacted = Column(String, nullable=True)
+    llm_response_redacted = Column(Text, nullable=True)

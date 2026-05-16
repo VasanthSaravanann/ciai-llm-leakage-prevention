@@ -621,7 +621,7 @@ def detect_sensitive(text: str, _depth: int = 0) -> dict:
 _BASE64_PATTERN = re.compile(r'[A-Za-z0-9+/]{8,}={0,2}')
 
 
-def _detect_base64_pii(text: str) -> list[str]:
+def _detect_base64_pii(text: str, _depth: int = 0) -> list[str]:
     """
     Find base64-encoded strings, decode them, and check for PII.
 
