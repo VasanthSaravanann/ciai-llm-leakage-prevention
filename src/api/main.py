@@ -1,4 +1,8 @@
 from src.config import get_api_keys
+from jose import JWTError, jwt
+from datetime import datetime, timedelta
+from typing import Optional
+from src.config import settings
 """
 CIAI FastAPI Control Plane
 ==========================
@@ -63,6 +67,17 @@ async def get_api_key(api_key: str = Security(api_key_header)):
     valid_keys = get_api_keys()
     if api_key in valid_keys:
         return api_key
+
+    # Also accept Bearer JWT tokens in the Authorization header
+    # The APIKeyHeader extractor will put the header value here if supplied
+    if api_key and api_key.startswith('Bearer '):
+        token = api_key.split(' ', 1)[1]
+        try:
+            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+            # Optionally, check claims like exp, sub, scopes
+            return token
+        except JWTError:
+            pass
     raise HTTPException(
         status_code=HTTP_403_FORBIDDEN, detail="Invalid or missing API key"
     )
