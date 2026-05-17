@@ -17,6 +17,7 @@ class AuditLog(Base):
     redacted_prompt_ciphertext = Column(Text, nullable=True)
     redacted_prompt_key_id = Column(String(256), nullable=True)
     detection_types = Column(JSON)  # Store list of strings
+    trace_metadata = Column(JSON, nullable=True)
     action = Column(String)  # "block" or "redact" or "pass"
     severity = Column(String)
     llm_response_redacted = Column(Text, nullable=True)

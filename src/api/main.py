@@ -200,6 +200,12 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
     try:
         # Optionally encrypt redacted prompt before storing when ENCRYPT_LOGS=1
         text = sanitize(result["redacted_text"]) if result.get("redacted_text") else ''
+        trace_metadata = {
+            "policy_version": os.getenv("POLICY_VERSION", "v1"),
+            "request_type": "detect",
+            "output_moderation": "not-run",
+        }
+
         if os.getenv('ENCRYPT_LOGS', '0') == '1':
             try:
                 keyid, ciphertext = _encrypt(text.encode('utf-8'))
@@ -212,6 +218,7 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
                     redacted_prompt_key_id=keyid,
                     redacted_fingerprint=fingerprint,
                     detection_types=result["detections"],
+                    trace_metadata=trace_metadata,
                     action="block" if result["block"] else "redact",
                     severity=result["severity"]
                 )
@@ -221,6 +228,7 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
                     redacted_prompt=text,
                     redacted_fingerprint=fingerprint,
                     detection_types=result["detections"],
+                    trace_metadata=trace_metadata,
                     action="block" if result["block"] else "redact",
                     severity=result["severity"]
                 )
@@ -230,6 +238,7 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
                 redacted_prompt=text,
                 redacted_fingerprint=fingerprint,
                 detection_types=result["detections"],
+                trace_metadata=trace_metadata,
                 action="block" if result["block"] else "redact",
                 severity=result["severity"]
             )
@@ -298,6 +307,11 @@ async def log_event(
         sanitized_user_id = sanitize(req.user_id)
         sanitized_prompt = sanitize(req.redacted_prompt)
         sanitized_response = sanitize(req.llm_response_redacted) if req.llm_response_redacted else None
+        trace_metadata = {
+            "policy_version": os.getenv("POLICY_VERSION", "v1"),
+            "request_type": "log",
+            "output_moderation": "not-run",
+        }
 
         # Optionally encrypt stored redacted prompt
         if os.getenv('ENCRYPT_LOGS', '0') == '1':
@@ -324,6 +338,7 @@ async def log_event(
                     redacted_prompt_key_id=keyid,
                     redacted_fingerprint=prompt_fingerprint,
                     detection_types=req.detection_types,
+                    trace_metadata=trace_metadata,
                     action=req.action,
                     severity=req.severity,
                     llm_response_redacted=sanitized_response
@@ -334,6 +349,7 @@ async def log_event(
                     redacted_prompt=sanitized_prompt,
                     redacted_fingerprint=prompt_fingerprint,
                     detection_types=req.detection_types,
+                    trace_metadata=trace_metadata,
                     action=req.action,
                     severity=req.severity,
                     llm_response_redacted=sanitized_response
@@ -344,6 +360,7 @@ async def log_event(
                 redacted_prompt=sanitized_prompt,
                 redacted_fingerprint=prompt_fingerprint,
                 detection_types=req.detection_types,
+                trace_metadata=trace_metadata,
                 action=req.action,
                 severity=req.severity,
                 llm_response_redacted=sanitized_response

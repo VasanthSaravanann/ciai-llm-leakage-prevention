@@ -24,8 +24,8 @@ if [ -f .env ]; then
   set +a
 fi
 
-echo "Starting docker compose..."
-docker compose up -d
+echo "Starting staging services (db, redis, web, worker, beat)..."
+docker compose up -d db redis web worker beat
 
 echo "Waiting for Postgres to be ready..."
 for i in {1..30}; do
@@ -36,15 +36,16 @@ for i in {1..30}; do
   sleep 2
 done
 
-echo "Activating venv and running migrations"
+echo "Running Alembic migrations through compose"
+docker compose run --rm migrate
+
+echo "Activating venv and running local verification steps"
 if [ -f .venv/bin/activate ]; then
   # shellcheck source=/dev/null
   source .venv/bin/activate
 else
   echo "Warning: virtualenv .venv not found. Running alembic with system Python." >&2
 fi
-
-alembic upgrade head
 
 echo "Verifying encryption (ENCRYPT_LOGS=${ENCRYPT_LOGS:-0})"
 python scripts/verify_encryption.py || true
