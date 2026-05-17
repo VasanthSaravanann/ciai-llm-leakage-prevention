@@ -1,3 +1,4 @@
+from src.config import get_api_keys
 """
 CIAI FastAPI Control Plane
 ==========================
@@ -58,11 +59,21 @@ api_key_header = APIKeyHeader(name=settings.API_KEY_NAME, auto_error=False)
 
 
 async def get_api_key(api_key: str = Security(api_key_header)):
-    if api_key == settings.API_KEY:
+    # Accept any key present in the configured API_KEYS list (rotatable)
+    valid_keys = get_api_keys()
+    if api_key in valid_keys:
         return api_key
     raise HTTPException(
         status_code=HTTP_403_FORBIDDEN, detail="Invalid or missing API key"
     )
+
+# Prometheus metrics (simple)
+try:
+    from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
+    REQUEST_COUNTER = Counter('ciai_requests_total', 'Total requests to CIAI API')
+except Exception:
+    REQUEST_COUNTER = None
+
 
 
 # Rate Limiting
@@ -137,7 +148,17 @@ class LogResponse(BaseModel):
 @limiter.limit("60/minute")
 async def health(request: Request):
     """Health check endpoint."""
+    if REQUEST_COUNTER:
+        REQUEST_COUNTER.inc()
     return {"status": "ok", "service": "ciai-detection"}
+
+
+@app.get('/metrics')
+async def metrics():
+    if REQUEST_COUNTER is None:
+        return Response(content='metrics_unavailable', media_type='text/plain')
+    data = generate_latest()
+    return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
