@@ -27,7 +27,12 @@ def _ensure_sqlite_schema():
 
     with engine.connect() as conn:
         res = conn.execute(text("PRAGMA table_info('audit_log')"))
-        cols = [row[1] for row in res.fetchall()]
+        rows = res.fetchall()
+        # If the table does not exist yet, skip best-effort ALTERs — Alembic will create schema.
+        if not rows:
+            return
+
+        cols = [row[1] for row in rows]
         if "redacted_fingerprint" not in cols:
             # Add the missing column (best-effort migration)
             conn.execute(text("ALTER TABLE audit_log ADD COLUMN redacted_fingerprint VARCHAR(128)"))
