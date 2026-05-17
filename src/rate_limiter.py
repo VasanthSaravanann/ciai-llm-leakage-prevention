@@ -1,0 +1,33 @@
+import os
+import time
+from typing import Optional
+
+import redis
+
+DEFAULT_QUOTA = int(os.getenv('DEFAULT_QUOTA_PER_MINUTE', '60'))
+DEFAULT_WINDOW = int(os.getenv('DEFAULT_QUOTA_WINDOW_SECONDS', '60'))
+
+
+class RateLimiter:
+    """Simple Redis-backed fixed-window rate limiter per API key."""
+
+    def __init__(self, redis_url: str | None = None):
+        self.redis_url = redis_url or os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+        self.r = redis.from_url(self.redis_url) if self.redis_url else None
+
+    def allow(self, key: str, quota: Optional[int] = None, window: Optional[int] = None) -> bool:
+        if not self.r:
+            return True
+        q = quota or DEFAULT_QUOTA
+        w = window or DEFAULT_WINDOW
+        # use fixed window key based on current epoch window
+        window_start = int(time.time() / w) * w
+        redis_key = f"quota:{key}:{window_start}"
+        try:
+            val = self.r.incr(redis_key)
+            if val == 1:
+                self.r.expire(redis_key, w + 1)
+            return val <= q
+        except Exception:
+            # On Redis errors, fail open (allow) to avoid blocking traffic
+            return True

@@ -44,6 +44,7 @@ from src.logging.models import Base, AuditLog
 from src.logging.alerts import send_alert_email, should_send_alert
 from src.logging.encryption import encrypt as _encrypt
 import base64
+from src.rate_limiter import RateLimiter
 
 # Initialize database
 Base.metadata.create_all(bind=engine)
@@ -59,6 +60,9 @@ app = FastAPI(
     description="Detect and prevent sensitive data leakage to LLMs",
     version=settings.API_VERSION
 )
+
+# Rate limiter instance
+rate_limiter = RateLimiter(getattr(settings, 'REDIS_URL', None))
 
 # API Key Security
 api_key_header = APIKeyHeader(name=settings.API_KEY_NAME, auto_error=False)
@@ -239,7 +243,7 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
 
 @app.post("/detect", response_model=DetectResponse, dependencies=[Depends(get_api_key)])
 @limiter.limit("30/minute")
-async def detect(request: Request, req: DetectRequest, background_tasks: BackgroundTasks):
+async def detect(request: Request, req: DetectRequest, background_tasks: BackgroundTasks, api_key: str = Depends(get_api_key)):
     """Analyze text for sensitive data (PII, secrets, India-specific IDs)."""
     try:
         # Enforce Content-Length/request size limits early to avoid large payload DoS
@@ -250,6 +254,12 @@ async def detect(request: Request, req: DetectRequest, background_tasks: Backgro
         except ValueError:
             # malformed header — reject
             raise HTTPException(status_code=400, detail="Invalid Content-Length header")
+
+        # Enforce per-key quota
+        if api_key:
+            allowed = rate_limiter.allow(api_key)
+            if not allowed:
+                raise HTTPException(status_code=429, detail="Rate quota exceeded")
 
         # Compute fingerprint of the incoming text (sha256 hex) for auditing
         import hashlib
@@ -273,10 +283,17 @@ async def log_event(
     request: Request,
     req: LogRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    api_key: str = Depends(get_api_key)
 ):
     """Store an audit log entry in SQLite and trigger alerts if needed."""
     try:
+        # Enforce per-key quota for logging as well
+        if api_key:
+            allowed = rate_limiter.allow(api_key)
+            if not allowed:
+                raise HTTPException(status_code=429, detail="Rate quota exceeded")
+
         # XSS sanitization
         sanitized_user_id = sanitize(req.user_id)
         sanitized_prompt = sanitize(req.redacted_prompt)
