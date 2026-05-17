@@ -93,8 +93,12 @@ except Exception:
 
 
 
-# Rate Limiting
-limiter = Limiter(key_func=get_remote_address)
+# Rate Limiting: use Redis backend when available for shared quotas
+storage_uri = getattr(settings, 'REDIS_URL', None)
+if storage_uri:
+    limiter = Limiter(key_func=get_remote_address, storage_uri=storage_uri)
+else:
+    limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 
 
