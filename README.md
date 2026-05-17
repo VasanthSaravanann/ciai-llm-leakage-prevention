@@ -1,195 +1,165 @@
-# CIAI – LLM Data Leakage Prevention
+CIAI – LLM Data Leakage Prevention
+===================================
 
-> Lightweight, resource-efficient solution to monitor, detect, and prevent sensitive data (PII, secrets, India-specific IDs) from leaking into LLM prompts. Built for Indian enterprises needing DPDP Act compliance.
+Overview
+--------
+Lightweight project to detect and prevent sensitive data (PII, secrets, India-specific IDs) from leaking into LLM prompts. This repository contains:
 
-## Status
+- Detection engine (regex + Microsoft Presidio)
+- FastAPI control plane (`/detect`, `/log`, `/health`)
+- Audit logging and optional envelope encryption
+- Staging scripts, Alembic migrations, and CI scaffolding
 
-| Phase | Component | Status |
-|-------|-----------|--------|
-| **Phase 1** | Detection Engine + FastAPI API + Tests | ✅ Complete |
-| **Phase 2** | SQLite Logging + Email Alerts | ✅ Complete |
-| **Phase 3** | mitmproxy Interceptor | ✅ Complete |
-| **Phase 4** | Integration + Dashboard | ✅ Complete |
-| Phase 5 | Docker Packaging + Docs | Planned |
+Goal
+----
+Make it easy for trainers and reviewers to run the full detect → log → LLM flow locally (mock or real provider) and in a staging environment.
 
-## What It Detects
+Contents
+--------
+- `src/` — application code (API, detection, logging, llm adapters)
+- `scripts/` — helper scripts: `harness.py`, `verify_encryption.py`, `run_staging.sh`
+- `alembic/` — migration scripts
+- `docker-compose.yml` — local staging stack (Postgres + Redis + web + worker)
+- `tests/` — unit tests and security audit
 
-### India-Specific (Regex + Luhn)
-| Pattern | Example | Action |
-|---------|---------|--------|
-| **Aadhaar** (12-digit, 4-4-4) | `2345 6789 0123` | Block + Redact |
-| **PAN** (5L-4D-1L) | `ABCDE1234F` | Block + Redact |
-| **Credit Card** (13-19 digit + Luhn) | `4111 1111 1111 1111` | Block + Redact |
+Quick roadmap for a tester
+--------------------------
+1. Local smoke test (fast, no external services): uses `sqlite` and the mock LLM provider.
+2. Staging test (recommended for real-LLM): Postgres + Redis + OpenAI (or managed LLM).
+3. Production-like test: provision managed DB, Redis, and KMS; run CI / red-team suites.
 
-### API Keys & Secrets
-| Pattern | Example | Action |
-|---------|---------|--------|
-| OpenAI Key | `sk-abc...` | Block + Redact |
-| Anthropic Key | `sk-ant-api03-...` | Block + Redact |
-| AWS Access Key | `AKIAIOSFODNN7EXAMPLE` | Block + Redact |
-| AWS Secret | `aws_secret_access_key = ...` | Block + Redact |
-| Generic API Key | `api_key = ...` | Block + Redact |
-| Bearer Token | `Bearer eyJhbG...` | Block + Redact |
-| Password/Secret | `password = ...` | Block + Redact |
+Precise step-by-step (local smoke test)
+--------------------------------------
+1. Create and activate a venv, install deps, and download the spaCy model:
 
-### PII (Microsoft Presidio NER)
-Email, phone, person name, location, IP address, URL, date/time, credit card
-
-## Tech Stack
-
-- **Python 3.10+**
-- **FastAPI** — API control plane
-- **Presidio** (Microsoft) — PII detection + redaction
-- **spaCy** (`en_core_web_sm`, 13MB) — NLP engine
-- **SQLite** — audit log storage (Phase 2)
-- **mitmproxy** — HTTP interceptor (Phase 3)
-- **SMTP** — email alerts (Phase 2)
-
-## Quick Start
-
-### Prerequisites
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
-### Run the API
+2. Set environment variables for a local smoke test (mock LLM):
+
 ```bash
-uvicorn src.api.main:app --reload --port 8000
+export PYTHONPATH=$PWD
+export DATABASE_URL=sqlite:///./dev.db
+export REDIS_URL=redis://localhost:6379/0   # optional
+export API_KEYS=testkey
+export JWT_SECRET_KEY=devsecret
+export LLM_PROVIDER=mock
+export LLM_API_KEY=    # leave blank for mock
+export ENCRYPT_LOGS=0
 ```
 
-### Test It
+3. Start the API (venv executables recommended):
+
 ```bash
-# Health check
+.venv/bin/uvicorn src.api.main:app --reload --port 8000
+```
+
+4. Quick checks:
+
+```bash
+# health
 curl http://localhost:8000/health
 
-# Clean text (should pass)
-curl -X POST http://localhost:8000/detect \
-  -H "Content-Type: application/json" \
-  -d '{"text": "Hello world, how are you?"}'
-
-# PAN detection (should block)
-curl -X POST http://localhost:8000/detect \
-  -H "Content-Type: application/json" \
-  -d '{"text": "My PAN is ABCDE1234F"}'
-
-# Aadhaar detection (should block)
-curl -X POST http://localhost:8000/detect \
-  -H "Content-Type: application/json" \
-  -d '{"text": "My Aadhaar is 234567890123"}'
+# example detection (no API key header required for local tests by default)
+curl -X POST http://localhost:8000/detect -H "Content-Type: application/json" -d '{"text":"My PAN is ABCDE1234F"}'
 ```
 
-### Run Tests
+5. Run unit tests (run only the `tests/` package):
 
-#### Unit Tests (34 tests)
 ```bash
-pytest tests/test_detection.py -v
+.venv/bin/pytest tests -q
 ```
 
-#### Security Audit (45 evasion tests)
+6. Run the harness (mock LLM) to exercise the end-to-end flow:
+
 ```bash
-python tests/security_audit.py
+.venv/bin/python scripts/harness.py
 ```
 
-For detailed test categories and the **Bypass Rate Journey**, see [TESTING.md](TESTING.md).
+Staging flow (real LLM testing)
+--------------------------------
+Use this when you have Docker locally or managed Postgres/Redis and an LLM key.
 
-## Project Structure
+1. Prepare secrets (example env):
 
-```
-.
-├── .gitignore
-├── BUILD-LOG-PHASE1.md
-├── README.md
-├── requirements.txt
-├── src/
-│   ├── __init__.py
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── main.py              # FastAPI: /detect, /log, /health
-│   ├── detection/
-│   │   ├── __init__.py
-│   │   └── detect.py            # Core engine: regex + Presidio
-│   ├── logging/                 # Phase 2: SQLite models + audit
-│   └── proxy/                   # Phase 3: mitmproxy addon
-├── tests/
-│   ├── __init__.py
-│   └── test_detection.py        # 34 unit tests
-└── docs/                        # Original design docs (preserved)
-    ├── architecture.md
-    ├── implementation plan.md
-    ├── addon.md
-    ├── Chrome extension.md
-    ├── emailalert.md
-    └── loggingendpoint.md
+```bash
+export DATABASE_URL=postgresql+psycopg2://user:pass@host:5432/ciai_audit
+export REDIS_URL=redis://host:6379/0
+export API_KEYS=staging-key-1
+export JWT_SECRET_KEY=strong-secret
+export LLM_PROVIDER=openai
+export LLM_API_KEY=sk-...
+export ENCRYPT_LOGS=1
+# If using AWS KMS:
+export AWS_REGION=us-east-1
+export AWS_ACCESS_KEY_ID=...
+export AWS_SECRET_ACCESS_KEY=...
+export KMS_KEY_ID=arn:aws:kms:...
 ```
 
-## Architecture
+2. Install deps and run Alembic migrations:
 
-```
-┌──────────────┐
-│  EMPLOYEE    │
-│  (Browser)   │
-└──────┬───────┘
-       │ prompt
-       ▼
-┌──────────────────────┐
-│  PROXY / EXTENSION   │  ← Phase 3 (mitmproxy)
-│  intercepts request  │
-└──────┬───────────────┘
-       │ text
-       ▼
-┌──────────────────────┐
-│  DETECTION ENGINE    │  ← Phase 1 ✅
-│  regex + Presidio    │
-│  → block / redact    │
-└──────┬───────────────┘
-       │ event
-       ▼
-┌──────────────────────┐
-│  LOGGING + ALERTS    │  ← Phase 2 (SQLite + SMTP)
-│  store + notify      │
-└──────────────────────┘
+```bash
+.venv/bin/pip install -r requirements.txt
+.venv/bin/alembic upgrade head
 ```
 
-## API Reference
+3. Start services:
 
-### `POST /detect`
-Analyze text for sensitive data.
+If using Docker Compose (local staging):
 
-**Request:**
-```json
-{ "text": "My PAN is ABCDE1234F" }
+```bash
+docker compose up -d
+docker compose exec web alembic upgrade head
 ```
 
-**Response:**
-```json
-{
-  "detections": ["PAN"],
-  "block": true,
-  "redact": true,
-  "redacted_text": "My PAN is [REDACTED]",
-  "severity": "high"
-}
+Or run the API directly as above if pointing at managed Postgres/Redis.
+
+4. Verify encryption (if enabled) and run harness to send real LLM traffic:
+
+```bash
+.venv/bin/python scripts/verify_encryption.py
+.venv/bin/python scripts/harness.py
 ```
 
-### `POST /log`
-Store audit event (Phase 2 placeholder).
+Notes about local LLMs
+---------------------
+- `src/llm/adapter.py` currently supports `mock` (httpbin) and `openai` provider calls.
+- To test a local LLM server that implements an OpenAI-compatible REST API, either:
+  - Run a small proxy that forwards OpenAI-compatible requests to your local model and set `LLM_PROVIDER=openai` and `LLM_API_KEY` accordingly, or
+  - Modify `src/llm/adapter.py` to point the OpenAI request URL to your local server (set a new `OPENAI_BASE_URL` env var and update the adapter to use it).
 
-### `GET /health`
-Health check.
+Environment variables (summary)
+--------------------------------
+- `DATABASE_URL` — SQLAlchemy URL (sqlite for quick tests or Postgres for staging)
+- `REDIS_URL` — Redis URL for rate-limiter and Celery broker
+- `API_KEYS` — comma-separated API keys permitted to call the API
+- `JWT_SECRET_KEY` — secret for JWT bearer support
+- `LLM_PROVIDER` — `mock` or `openai` (default `mock`)
+- `LLM_API_KEY` — provider API key (OpenAI key when `openai`)
+- `ENCRYPT_LOGS` — `0` or `1` to enable storing ciphertext metadata (requires KMS or Fernet fallback)
+- `KMS_KEY_ID`, `AWS_*` — optional for envelope encryption via AWS KMS
 
-## Severity Classification
+Troubleshooting
+---------------
+- If `alembic` is not found, run it from the venv: `.venv/bin/alembic upgrade head`.
+- If tests fail with `ModuleNotFoundError: No module named 'src'`, ensure `PYTHONPATH=$PWD` is exported or run tests with the venv from repo root.
+- If you cannot run Docker locally, use managed Postgres/Redis and run the API directly.
 
-| Level | Condition | Action |
-|-------|-----------|--------|
-| **high** | Aadhaar, PAN, credit card, API key, secret | Block request |
-| **medium** | 2+ Presidio detections (email + phone, etc.) | Redact |
-| **low** | Single Presidio detection | Redact |
-| **none** | Clean text | Pass through |
+Where to look next
+------------------
+- Read `TESTING.md` for the 45-point security audit details.
+- Use `scripts/run_staging.sh` to automate a local staging run (it calls compose and runs migrations where appropriate).
+- Use `DEPLOYMENT.md` for deployment guidance and secrets checklist.
 
-## Build Log
+Contact / Maintainers
+---------------------
+The repo owner and contributors are listed in the Git history; open issues or pull requests for changes to the adapter or runbook.
 
-Detailed build log with design decisions, issues, and verification:
-→ [`BUILD-LOG-PHASE1.md`](BUILD-LOG-PHASE1.md)
+License / Notes
+---------------
+This repo is a demo/hardening exercise — review the code and dependencies before running with production data or real customer traffic.
