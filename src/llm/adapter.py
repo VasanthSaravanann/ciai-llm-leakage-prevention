@@ -6,19 +6,21 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 LLM_PROVIDER = os.environ.get('LLM_PROVIDER', 'mock')
 LLM_API_KEY = os.environ.get('LLM_API_KEY')
 
-# Optional OpenAI model
+# Optional OpenAI model and base URL (useful for local OpenAI-compatible servers)
 OPENAI_MODEL = os.environ.get('OPENAI_MODEL', 'gpt-3.5-turbo')
+OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com')
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=8), retry=retry_if_exception_type(Exception))
 def send_prompt(prompt: str) -> str:
     if LLM_PROVIDER == 'mock' or not LLM_API_KEY:
+        # Mock provider: useful for offline smoke tests and trainer runs
         resp = requests.post('https://httpbin.org/post', json={'prompt': prompt}, timeout=10)
         return resp.text
     # Provider specific implementations
     headers = {'Authorization': f'Bearer {LLM_API_KEY}', 'Content-Type': 'application/json'}
     if LLM_PROVIDER == 'openai':
-        url = 'https://api.openai.com/v1/chat/completions'
+        url = f"{OPENAI_BASE_URL.rstrip('/')}/v1/chat/completions"
         payload = {
             'model': OPENAI_MODEL,
             'messages': [
