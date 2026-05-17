@@ -10,8 +10,14 @@ from alembic import context
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-fileConfig(config.config_file_name)
+# Interpret the config file for Python logging. Be tolerant of logging config issues
+try:
+    if config.config_file_name:
+        fileConfig(config.config_file_name)
+except Exception:
+    # Some environments may not support the alembic ini logging sections as-is.
+    # Fail gracefully and continue without configured logging.
+    pass
 
 # Add your model's MetaData object here for 'autogenerate' support
 import sys
