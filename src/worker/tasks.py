@@ -28,10 +28,14 @@ def detect_and_log(text: str, user_id: str = 'worker'):
         if os.environ.get('ENCRYPT_LOGS', '0') == '1':
             try:
                 keyid, ciphertext = _encrypt(text_to_store.encode('utf-8'))
-                text_to_store = f"__enc__{keyid}::" + base64.b64encode(ciphertext).decode('ascii')
+                ciphertext_b64 = base64.b64encode(ciphertext).decode('ascii')
+                entry.redacted_prompt = '__encrypted__'
+                entry.redacted_prompt_ciphertext = ciphertext_b64
+                entry.redacted_prompt_key_id = keyid
             except Exception:
-                pass
-        entry.redacted_prompt = text_to_store
+                entry.redacted_prompt = text_to_store
+        else:
+            entry.redacted_prompt = text_to_store
         db.add(entry)
         db.commit()
     finally:

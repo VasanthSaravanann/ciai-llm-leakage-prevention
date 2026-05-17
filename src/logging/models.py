@@ -13,6 +13,9 @@ class AuditLog(Base):
     # Store only redacted prompt text (no raw prompt). Keep fingerprint for lookup.
     redacted_prompt = Column(Text)
     redacted_fingerprint = Column(String(128), index=True)
+    # New columns for encrypted storage (ciphertext stored base64-encoded)
+    redacted_prompt_ciphertext = Column(Text, nullable=True)
+    redacted_prompt_key_id = Column(String(256), nullable=True)
     detection_types = Column(JSON)  # Store list of strings
     action = Column(String)  # "block" or "redact" or "pass"
     severity = Column(String)

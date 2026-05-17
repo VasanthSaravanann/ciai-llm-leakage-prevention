@@ -195,19 +195,36 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
         if os.getenv('ENCRYPT_LOGS', '0') == '1':
             try:
                 keyid, ciphertext = _encrypt(text.encode('utf-8'))
-                text = f"__enc__{keyid}::" + base64.b64encode(ciphertext).decode('ascii')
+                ciphertext_b64 = base64.b64encode(ciphertext).decode('ascii')
+                # store metadata in dedicated columns, keep redacted_prompt non-sensitive
+                db_log = AuditLog(
+                    user_id="direct-api",
+                    redacted_prompt='__encrypted__',
+                    redacted_prompt_ciphertext=ciphertext_b64,
+                    redacted_prompt_key_id=keyid,
+                    redacted_fingerprint=fingerprint,
+                    detection_types=result["detections"],
+                    action="block" if result["block"] else "redact",
+                    severity=result["severity"]
+                )
             except Exception:
-                # Fallback to plain sanitized text if encryption fails
-                pass
-
-        db_log = AuditLog(
-            user_id="direct-api",
-            redacted_prompt=text,
-            redacted_fingerprint=fingerprint,
-            detection_types=result["detections"],
-            action="block" if result["block"] else "redact",
-            severity=result["severity"]
-        )
+                db_log = AuditLog(
+                    user_id="direct-api",
+                    redacted_prompt=text,
+                    redacted_fingerprint=fingerprint,
+                    detection_types=result["detections"],
+                    action="block" if result["block"] else "redact",
+                    severity=result["severity"]
+                )
+        else:
+            db_log = AuditLog(
+                user_id="direct-api",
+                redacted_prompt=text,
+                redacted_fingerprint=fingerprint,
+                detection_types=result["detections"],
+                action="block" if result["block"] else "redact",
+                severity=result["severity"]
+            )
         db.add(db_log)
         db.commit()
     except Exception as e:
@@ -274,16 +291,42 @@ async def log_event(
 
         prompt_fingerprint = hashlib.sha256(sanitized_prompt.encode("utf-8", errors="ignore")).hexdigest()
 
-        # 1. Synchronous insert (returns ID immediately)
-        db_log = AuditLog(
-            user_id=sanitized_user_id,
-            redacted_prompt=sanitized_prompt,
-            redacted_fingerprint=prompt_fingerprint,
-            detection_types=req.detection_types,
-            action=req.action,
-            severity=req.severity,
-            llm_response_redacted=sanitized_response
-        )
+        # 1. Synchronous insert (returns ID immediately). If ENCRYPT_LOGS=1, encrypt and store ciphertext.
+        if os.getenv('ENCRYPT_LOGS', '0') == '1':
+            try:
+                keyid, ciphertext = _encrypt(sanitized_prompt.encode('utf-8'))
+                ciphertext_b64 = base64.b64encode(ciphertext).decode('ascii')
+                db_log = AuditLog(
+                    user_id=sanitized_user_id,
+                    redacted_prompt='__encrypted__',
+                    redacted_prompt_ciphertext=ciphertext_b64,
+                    redacted_prompt_key_id=keyid,
+                    redacted_fingerprint=prompt_fingerprint,
+                    detection_types=req.detection_types,
+                    action=req.action,
+                    severity=req.severity,
+                    llm_response_redacted=sanitized_response
+                )
+            except Exception:
+                db_log = AuditLog(
+                    user_id=sanitized_user_id,
+                    redacted_prompt=sanitized_prompt,
+                    redacted_fingerprint=prompt_fingerprint,
+                    detection_types=req.detection_types,
+                    action=req.action,
+                    severity=req.severity,
+                    llm_response_redacted=sanitized_response
+                )
+        else:
+            db_log = AuditLog(
+                user_id=sanitized_user_id,
+                redacted_prompt=sanitized_prompt,
+                redacted_fingerprint=prompt_fingerprint,
+                detection_types=req.detection_types,
+                action=req.action,
+                severity=req.severity,
+                llm_response_redacted=sanitized_response
+            )
         db.add(db_log)
         db.commit()
         db.refresh(db_log)
