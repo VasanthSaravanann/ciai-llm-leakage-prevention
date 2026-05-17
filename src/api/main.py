@@ -42,6 +42,8 @@ from src.config import settings
 from src.logging.database import engine, get_db, SessionLocal
 from src.logging.models import Base, AuditLog
 from src.logging.alerts import send_alert_email, should_send_alert
+from src.logging.encryption import encrypt as _encrypt
+import base64
 
 # Initialize database
 Base.metadata.create_all(bind=engine)
@@ -188,9 +190,19 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
     """Background task to log detection events without slowing down the API."""
     db = SessionLocal()
     try:
+        # Optionally encrypt redacted prompt before storing when ENCRYPT_LOGS=1
+        text = sanitize(result["redacted_text"]) if result.get("redacted_text") else ''
+        if os.getenv('ENCRYPT_LOGS', '0') == '1':
+            try:
+                keyid, ciphertext = _encrypt(text.encode('utf-8'))
+                text = f"__enc__{keyid}::" + base64.b64encode(ciphertext).decode('ascii')
+            except Exception:
+                # Fallback to plain sanitized text if encryption fails
+                pass
+
         db_log = AuditLog(
             user_id="direct-api",
-            redacted_prompt=sanitize(result["redacted_text"]),
+            redacted_prompt=text,
             redacted_fingerprint=fingerprint,
             detection_types=result["detections"],
             action="block" if result["block"] else "redact",
@@ -248,6 +260,14 @@ async def log_event(
         sanitized_user_id = sanitize(req.user_id)
         sanitized_prompt = sanitize(req.redacted_prompt)
         sanitized_response = sanitize(req.llm_response_redacted) if req.llm_response_redacted else None
+
+        # Optionally encrypt stored redacted prompt
+        if os.getenv('ENCRYPT_LOGS', '0') == '1':
+            try:
+                keyid, ciphertext = _encrypt(sanitized_prompt.encode('utf-8'))
+                sanitized_prompt = f"__enc__{keyid}::" + base64.b64encode(ciphertext).decode('ascii')
+            except Exception:
+                pass
 
         # Compute fingerprint of the provided redacted prompt for lookup (do not store raw original)
         import hashlib
