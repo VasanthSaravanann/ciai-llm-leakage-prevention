@@ -76,9 +76,10 @@ class AuditLog(Base):
 async def init_db():
     """Create tables if they don't exist. Call on app startup."""
     async with engine.begin() as conn:
-        # Enable WAL mode for better concurrent write handling
-        await conn.execute(text("PRAGMA journal_mode=WAL"))
-        await conn.execute(text("PRAGMA busy_timeout=5000"))
+        if DATABASE_URL.startswith("sqlite"):
+            # SQLite-only tuning; Postgres rejects PRAGMA statements.
+            await conn.execute(text("PRAGMA journal_mode=WAL"))
+            await conn.execute(text("PRAGMA busy_timeout=5000"))
         await conn.run_sync(Base.metadata.create_all)
 
 
