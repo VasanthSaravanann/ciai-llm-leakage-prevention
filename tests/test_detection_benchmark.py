@@ -1,5 +1,7 @@
 import time
 import csv
+from pathlib import Path
+
 import pytest
 
 # Skip these slow/integration-style benchmark tests when Presidio isn't installed
@@ -38,6 +40,7 @@ def test_detection_benchmark():
         results.append({'text': text, 'label': label, 'detections': res.get('detections', []), 'block': res.get('block', False), 'latency': duration})
 
     # Write a simple CSV report
+    Path(REPORT_CSV).parent.mkdir(parents=True, exist_ok=True)
     with open(REPORT_CSV, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['text', 'label', 'detections', 'block', 'latency'])
         writer.writeheader()
