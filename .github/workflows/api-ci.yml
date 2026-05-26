@@ -78,9 +78,9 @@ jobs:
         run: |
           docker build -t ciai-api:latest .
 
-      - name: Start services with docker-compose
+      - name: Start services with docker compose
         run: |
-          docker-compose -f docker-compose.api.yml up -d
+          docker compose -f docker-compose.api.yml up -d
           sleep 10
 
       - name: Run smoke tests
@@ -90,11 +90,11 @@ jobs:
           API_URL: http://localhost:8000
           API_KEY: change-this-key
 
-      - name: Collect docker-compose logs
+      - name: Collect docker compose logs
         if: always()
         run: |
           mkdir -p ci-logs
-          docker-compose -f docker-compose.api.yml logs > ci-logs/docker_compose_logs.txt || true
+          docker compose -f docker-compose.api.yml logs > ci-logs/docker_compose_logs.txt || true
 
       - name: Save pytest output
         if: always()
@@ -105,7 +105,7 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker-compose -f docker-compose.api.yml down -v
+          docker compose -f docker-compose.api.yml down -v
 
       - name: Upload CI logs
         if: always()
