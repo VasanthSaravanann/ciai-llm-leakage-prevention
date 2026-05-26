@@ -15,7 +15,7 @@ Minimal recommendations to run CIAI in a hardened, enterprise-ready mode.
 Example env vars for hardened deploy (managed KMS + private Redis):
 
 ```
-DATABASE_URL=postgresql://... (private)
+DATABASE_URL=postgresql+psycopg://... (private)
 REDIS_URL=redis://my-redis-cluster:6379/0
 KMS_KEY_ID=arn:aws:kms:region:account:key/abcd-1234
 FERNET_SECRET_NAME=ciai/fernet_key
