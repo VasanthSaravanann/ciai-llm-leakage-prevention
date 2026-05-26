@@ -1,0 +1,8 @@
+text,label,detections,block,latency
+My PAN is ABCDE1234F,positive,['PAN'],True,0.4397609233856201
+Card: 4111111111111111,positive,['CREDIT_CARD'],True,0.5747179985046387
+api_key = sk-abcdefghijklmnopqrstuvwxyz1234567890ABCD,positive,"['GENERIC_API_KEY', 'OPENAI_KEY']",True,0.561276912689209
+"Hello, how are you today?",negative,[],False,0.27471494674682617
+This is a sample sentence with no secrets.,negative,[],False,0.28505492210388184
+UGFyZW50IGtleTogc2stYWJjMTIz,adversarial,[],False,0.5590779781341553
+P A N : A B C D E 1 2 3 4 F,adversarial,[],False,0.30016398429870605

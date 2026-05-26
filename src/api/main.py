@@ -44,6 +44,7 @@ from src.logging.alerts import send_alert_email, should_send_alert
 from src.logging.encryption import encrypt as _encrypt
 import base64
 from src.rate_limiter import RateLimiter
+from src.moderation.moderator import moderate_response
 
 # Initialize database
 Base.metadata.create_all(bind=engine)
@@ -450,6 +451,15 @@ async def log_event(
         "request_type": "log",
         "output_moderation": "not-run",
     }
+
+    # Run output moderation on provided LLM response when present
+    if sanitized_response:
+        blocked, reason = moderate_response(sanitized_response, tenant_id)
+        trace_metadata["output_moderation"] = reason
+        if blocked:
+            # escalate action to block if moderation finds secrets
+            req.action = "block"
+            req.severity = "high"
 
     # Compute fingerprint of the provided redacted prompt for lookup (do not store raw original)
     import hashlib

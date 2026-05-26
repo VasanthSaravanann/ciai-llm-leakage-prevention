@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  web:
+    image: ${IMAGE_WEB:-ghcr.io/YOUR_ORG/ciai-api:latest}
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    image: ${IMAGE_WORKER:-ghcr.io/YOUR_ORG/ciai-worker:latest}
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - redis

@@ -163,3 +163,60 @@ The repo owner and contributors are listed in the Git history; open issues or pu
 License / Notes
 ---------------
 This repo is a demo/hardening exercise — review the code and dependencies before running with production data or real customer traffic.
+
+Handoff for Enterprise Testing
+------------------------------
+Use these steps to deliver the project to an enterprise tester or ops team. Include source (git), runnable images (Docker), compose files, migrations, and the runbook.
+
+1) What to include in the package
+- `docker-compose.yml` and `docker-compose.override.yml`
+- `.env.dev.example` and `HANDOFF_ENTERPRISE.md`
+- `alembic/versions/` (migration scripts)
+- `scripts/` (dev helpers and `oidc_test_provider.py`)
+- `data/detect_benchmark.csv` (benchmark artifact if available)
+
+2) How to push a release to Git (SSH)
+Create a release branch, tag it, and push via SSH. Example commands:
+
+```bash
+# create a release branch and push
+git checkout -b release/enterprise-ready
+git add -A
+git commit -m "Enterprise-ready release: handoff v1.0"
+git push origin release/enterprise-ready
+
+# create and push a signed tag
+git tag -a v1.0-enterprise -m "Enterprise handoff v1.0"
+git push origin v1.0-enterprise
+```
+
+If your git remote uses SSH (recommended for ops), ensure your SSH key is loaded (`ssh-agent` / `ssh-add`) and the remote URL uses the `git@` form (e.g. `git@github.com:org/repo.git`).
+
+3) How to publish Docker images (recommended)
+Build and push images to a registry the enterprise can pull from (GitHub Container Registry, ECR, GCR, or a private registry). Example using GHCR or a private registry:
+
+```bash
+# build
+docker build -t my-registry.example.com/ciai-api:web:1.0 .
+
+# tag & push
+docker tag ciai-api:web:1.0 my-registry.example.com/ciai-api:web:1.0
+docker push my-registry.example.com/ciai-api:web:1.0
+
+# export tarball (if they cannot pull images)
+docker save my-registry.example.com/ciai-api:web:1.0 -o ciai-api_web_1.0.tar
+```
+
+4) Quick tester checklist
+- Confirm `alembic upgrade head` runs successfully against staging DB.
+- Start stack: `docker compose up -d` or `bash scripts/dev_setup.sh` for local dev.
+- Verify RBAC with tokens (use `scripts/oidc_test_provider.py` or enterprise IdP).
+- Run detection benchmark: `pytest tests/test_detection_benchmark.py -q` and check `data/detect_benchmark.csv`.
+
+5) Security notes
+- Never include production secrets in the package. Share Vault/KMS credentials out-of-band.
+- For `SECRETS_MODE=managed_required`, provide Vault or KMS credentials to the testers, or set `SECRETS_MODE=optional` for initial evaluation.
+
+6) Contact & walkthrough
+Include a 30–60 minute walkthrough window and a contact for troubleshooting. Attach `HANDOFF_ENTERPRISE.md` for detailed run steps.
+

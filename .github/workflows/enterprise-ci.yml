@@ -1,0 +1,71 @@
+name: Enterprise CI
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ main ]
+
+jobs:
+  enterprise-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        oidc_enabled: [false, true]
+        secrets_mode: [optional, managed_required]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ciai_test
+          POSTGRES_USER: ciai_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Start local OIDC provider (if enabled)
+        if: matrix.oidc_enabled == 'true'
+        run: |
+          nohup python scripts/oidc_test_provider.py &
+          sleep 1
+
+      - name: Run detection benchmark and unit tests
+        env:
+          DATABASE_URL: postgresql+psycopg://ciai_user:test_password@localhost:5432/ciai_test
+          REDIS_URL: redis://localhost:6379
+          API_KEY: test-api-key
+          OIDC_ENABLED: ${{ matrix.oidc_enabled }}
+          SECRETS_MODE: ${{ matrix.secrets_mode }}
+        run: |
+          pytest tests/test_detection_benchmark.py -q
+
+      - name: Upload benchmark CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: detection-benchmark
+          path: data/detect_benchmark.csv

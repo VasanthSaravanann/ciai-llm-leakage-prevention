@@ -3,6 +3,7 @@ import time
 from typing import Optional
 
 import redis
+import logging
 
 DEFAULT_QUOTA = int(os.getenv('DEFAULT_QUOTA_PER_MINUTE', '60'))
 DEFAULT_WINDOW = int(os.getenv('DEFAULT_QUOTA_WINDOW_SECONDS', '60'))
@@ -29,9 +30,10 @@ class RateLimiter:
             if val == 1:
                 self.r.expire(redis_key, w + 1)
             return val <= q
-        except Exception:
-            # On Redis errors, respect GATEWAY_MODE: fail_open (allow) or fail_closed (deny)
-            gateway_mode = os.getenv('GATEWAY_MODE', 'fail_open')
+        except Exception as e:
+            # On Redis errors, respect GATEWAY_MODE: fail_closed (deny) or fail_open (allow)
+            logging.exception("RateLimiter Redis error")
+            gateway_mode = os.getenv('GATEWAY_MODE', 'fail_closed')
             if gateway_mode == 'fail_closed':
                 return False
             return True

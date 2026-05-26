@@ -8,6 +8,12 @@ __pycache__/
 venv/
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
+*.log
+ci_*.log
+latest_*.log
+focused_tests.log
 
 # Secrets (VULN-014)
 

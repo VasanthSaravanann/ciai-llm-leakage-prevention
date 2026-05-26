@@ -50,6 +50,7 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     timestamp = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     user_id = Column(String(255), nullable=False, index=True)
+    tenant_id = Column(String(255), nullable=True, index=True)
     redacted_prompt = Column(Text, nullable=False)
     detection_types = Column(String(500), nullable=False)  # JSON array as string
     action_taken = Column(String(20), nullable=False)  # "block" or "redact"
@@ -61,6 +62,7 @@ class AuditLog(Base):
             "id": self.id,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
             "user_id": self.user_id,
+            "tenant_id": self.tenant_id,
             "redacted_prompt": self.redacted_prompt,
             "detection_types": self.detection_types,
             "action_taken": self.action_taken,
@@ -90,6 +92,7 @@ async def create_audit_log(
     action_taken: str,
     llm_response_redacted: Optional[str] = None,
     severity: str = "low",
+    tenant_id: Optional[str] = None,
 ) -> int:
     """
     Insert a new audit log entry.
@@ -101,6 +104,7 @@ async def create_audit_log(
     async with AsyncSessionLocal() as session:
         entry = AuditLog(
             user_id=user_id,
+            tenant_id=tenant_id,
             redacted_prompt=redacted_prompt,
             detection_types=json.dumps(detection_types),
             action_taken=action_taken,
@@ -118,6 +122,7 @@ async def get_audit_logs(
     offset: int = 0,
     severity_filter: Optional[str] = None,
     user_id_filter: Optional[str] = None,
+    tenant_id_filter: Optional[str] = None,
 ) -> list[dict]:
     """
     Query audit logs (newest first).
@@ -134,6 +139,8 @@ async def get_audit_logs(
             query = query.where(AuditLog.severity == severity_filter)
         if user_id_filter:
             query = query.where(AuditLog.user_id == user_id_filter)
+        if tenant_id_filter:
+            query = query.where(AuditLog.tenant_id == tenant_id_filter)
 
         query = query.limit(limit).offset(offset)
         result = await session.execute(query)

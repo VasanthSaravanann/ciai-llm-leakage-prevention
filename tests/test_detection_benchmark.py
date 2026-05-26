@@ -30,6 +30,8 @@ ALL_CASES = [(p, 'positive') for p in POSITIVE] + [(n, 'negative') for n in NEGA
 
 REPORT_CSV = 'data/detect_benchmark.csv'
 
+from collections import defaultdict
+
 
 def test_detection_benchmark():
     results = []
@@ -46,6 +48,29 @@ def test_detection_benchmark():
         writer.writeheader()
         for r in results:
             writer.writerow(r)
+
+    # Compute per-class basic metrics (precision/recall)
+    metrics = {}
+    by_label = defaultdict(list)
+    for r in results:
+        by_label[r['label']].append(r)
+
+    # Treat positive as ground-truth for detection presence; adversarial treated as positive for recall
+    for label, items in by_label.items():
+        tp = sum(1 for i in items if i['label'] in ('positive', 'adversarial') and len(i['detections']) > 0)
+        fn = sum(1 for i in items if i['label'] in ('positive', 'adversarial') and len(i['detections']) == 0)
+        fp = sum(1 for i in items if i['label'] == 'negative' and len(i['detections']) > 0)
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        metrics[label] = {'tp': tp, 'fp': fp, 'fn': fn, 'precision': round(precision, 3), 'recall': round(recall, 3), 'samples': len(items)}
+
+    # Append metrics to CSV
+    with open(REPORT_CSV, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([])
+        writer.writerow(['label', 'samples', 'tp', 'fp', 'fn', 'precision', 'recall'])
+        for label, m in metrics.items():
+            writer.writerow([label, m['samples'], m['tp'], m['fp'], m['fn'], m['precision'], m['recall']])
 
     # Basic assertions to ensure detectors run
     assert any(len(r['detections']) > 0 for r in results if r['label'] == 'positive')
