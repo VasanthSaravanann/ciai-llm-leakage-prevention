@@ -17,6 +17,7 @@ class RateLimiter:
 
     def allow(self, key: str, quota: Optional[int] = None, window: Optional[int] = None) -> bool:
         if not self.r:
+            # No Redis configured: default to allow to preserve backward compatibility
             return True
         q = quota or DEFAULT_QUOTA
         w = window or DEFAULT_WINDOW
@@ -29,5 +30,8 @@ class RateLimiter:
                 self.r.expire(redis_key, w + 1)
             return val <= q
         except Exception:
-            # On Redis errors, fail open (allow) to avoid blocking traffic
+            # On Redis errors, respect GATEWAY_MODE: fail_open (allow) or fail_closed (deny)
+            gateway_mode = os.getenv('GATEWAY_MODE', 'fail_open')
+            if gateway_mode == 'fail_closed':
+                return False
             return True

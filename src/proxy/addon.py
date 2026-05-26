@@ -105,5 +105,47 @@ class CIAIInterceptor:
         except Exception as e:
             logger.error(f"Failed to log event to CIAI API: {str(e)}")
 
+    async def response(self, flow: http.HTTPFlow) -> None:
+        """Intercept LLM responses and run output-side moderation."""
+        # Only moderate responses for target hosts and paths
+        try:
+            if flow.request.pretty_host not in TARGET_HOSTS or TARGET_PATH not in flow.request.path:
+                return
+
+            if not flow.response or not flow.response.content:
+                return
+
+            content_type = flow.response.headers.get('Content-Type', '')
+            text = flow.response.get_text()
+            if not text:
+                return
+
+            # Call CIAI detect on the response text
+            resp = await self.client.post(
+                "/detect",
+                json={"text": text},
+                headers={"X-API-KEY": API_KEY, "Content-Type": "application/json"}
+            )
+            if resp.status_code != 200:
+                logger.error(f"CIAI moderation API error: {resp.status_code}")
+                return
+
+            result = resp.json()
+            if result.get('block'):
+                logger.warning("Blocking LLM response due to sensitive content")
+                flow.response = http.Response.make(
+                    403,
+                    json.dumps({"error": {"message": "Response blocked by CIAI moderation.", "detections": result.get('detections')}}),
+                    {"Content-Type": "application/json"}
+                )
+                return
+
+            if result.get('redact'):
+                # Simple redact: replace first occurrence of redacted_text
+                redacted = result.get('redacted_text', '')
+                flow.response.set_text(redacted)
+        except Exception as e:
+            logger.error(f"Interceptor response moderation error: {str(e)}")
+
 
 addons = [CIAIInterceptor()]

@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "dev-jwt-secret")
     JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+    # Admin / SSO / RBAC
+    # Set to '1' to enforce admin auth on admin endpoints (/dashboard, /metrics, /health)
+    ADMIN_AUTH_REQUIRED: bool = bool(int(os.getenv("ADMIN_AUTH_REQUIRED", "0")))
+    # Optional separate admin API key (strong, rotated)
+    ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "")
+    # JWT claim that contains role/group information (e.g., 'groups' or 'roles')
+    ROLE_CLAIM: str = os.getenv("ROLE_CLAIM", "groups")
+    # Gateway mode: 'fail_open' (default) or 'fail_closed'
+    GATEWAY_MODE: str = os.getenv("GATEWAY_MODE", "fail_open")
 
     # Data governance
     RETENTION_DAYS: int = int(os.getenv("RETENTION_DAYS", "90"))

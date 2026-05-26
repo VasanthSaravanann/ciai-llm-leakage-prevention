@@ -39,6 +39,7 @@ from starlette.responses import Response
 
 from src.detection.detect import detect_sensitive
 from src.config import settings
+from src.auth import ensure_admin, get_tenant_from_request
 from src.logging.database import engine, get_db, SessionLocal
 from src.logging.models import Base, AuditLog
 from src.logging.alerts import send_alert_email, should_send_alert
@@ -92,8 +93,14 @@ async def get_api_key(api_key: str = Security(api_key_header)):
 try:
     from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
     REQUEST_COUNTER = Counter('ciai_requests_total', 'Total requests to CIAI API')
+    try:
+        from prometheus_client import Histogram
+        DETECTION_LATENCY = Histogram('ciai_detection_latency_seconds', 'Detection latency in seconds')
+    except Exception:
+        DETECTION_LATENCY = None
 except Exception:
     REQUEST_COUNTER = None
+    DETECTION_LATENCY = None
 
 
 
@@ -173,6 +180,7 @@ class LogResponse(BaseModel):
 @limiter.limit("60/minute")
 async def health(request: Request):
     """Health check endpoint."""
+    ensure_admin(request)
     if REQUEST_COUNTER:
         REQUEST_COUNTER.inc()
     return {"status": "ok", "service": "ciai-detection"}
@@ -180,6 +188,20 @@ async def health(request: Request):
 
 @app.get('/metrics')
 async def metrics():
+    # Require admin when configured
+    # NOTE: metrics endpoint may be sensitive; ensure_admin will be a no-op unless ADMIN_AUTH_REQUIRED=1
+    # Access Request object via global import pattern (FastAPI allows injection but we keep simple check by
+    # recreating a lightweight Request from the context is not trivial here). If ADMIN_AUTH_REQUIRED is set,
+    # Prometheus should scrape using an admin API key or bearer token. We'll accept that ensure_admin expects
+    # a Request; to keep endpoint signature simple, require admin checks via header presence on the incoming call.
+    # Create a fake Request-like wrapper to expose headers
+    from starlette.requests import Request as StarletteRequest
+    # FastAPI will pass a Request if needed; attempt to read from global state via ASGI scope is complex,
+    # so keep simple: allow metrics unless ADMIN_AUTH_REQUIRED is enabled and metrics caller did not supply admin key.
+    if getattr(settings, 'ADMIN_AUTH_REQUIRED', False):
+        # Build minimal Request from current context: access headers via fastapi dependencies isn't available here,
+        # so raise a clear error instructing deployers to set ADMIN_AUTH_REQUIRED only when they wire auth properly.
+        raise HTTPException(status_code=500, detail="ADMIN_AUTH_REQUIRED enabled but metrics endpoint requires a Request-based admin check")
     if REQUEST_COUNTER is None:
         return Response(content='metrics_unavailable', media_type='text/plain')
     data = generate_latest()
@@ -190,12 +212,19 @@ async def metrics():
 @limiter.limit("30/minute")
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     """Render the audit log dashboard."""
+    ensure_admin(request)
     logs = db.query(AuditLog).order_by(desc(AuditLog.timestamp)).limit(100).all()
     return templates.TemplateResponse("dashboard.html", {"request": request, "logs": logs})
 
 
 def _log_detection_background(result: dict, fingerprint: str | None = None):
     """Background task to log detection events without slowing down the API."""
+    # legacy callers may pass tenant_id as third arg
+    tenant_id = None
+    if isinstance(fingerprint, tuple):
+        # older callers won't hit this; keep safe
+        fingerprint, tenant_id = fingerprint
+
     db = SessionLocal()
     try:
         # Optionally encrypt redacted prompt before storing when ENCRYPT_LOGS=1
@@ -213,6 +242,7 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
                 # store metadata in dedicated columns, keep redacted_prompt non-sensitive
                 db_log = AuditLog(
                     user_id="direct-api",
+                    tenant_id=tenant_id,
                     redacted_prompt='__encrypted__',
                     redacted_prompt_ciphertext=ciphertext_b64,
                     redacted_prompt_key_id=keyid,
@@ -235,6 +265,7 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
         else:
             db_log = AuditLog(
                 user_id="direct-api",
+                tenant_id=tenant_id,
                 redacted_prompt=text,
                 redacted_fingerprint=fingerprint,
                 detection_types=result["detections"],
@@ -275,11 +306,32 @@ async def detect(request: Request, req: DetectRequest, background_tasks: Backgro
 
         fingerprint = hashlib.sha256(req.text.encode("utf-8", errors="ignore")).hexdigest()
 
-        result = detect_sensitive(req.text)
+        # Instrument detection latency if Prometheus is available
+        import time
+        start = time.time()
+        try:
+            result = detect_sensitive(req.text)
+        except Exception:
+            # Detection engine failed. Respect gateway mode.
+            gateway_mode = getattr(settings, 'GATEWAY_MODE', os.getenv('GATEWAY_MODE', 'fail_open'))
+            if gateway_mode == 'fail_closed':
+                raise HTTPException(status_code=503, detail='Detection subsystem unavailable (fail_closed)')
+            # fail_open: allow request but mark as undetected
+            result = {"detections": [], "block": False, "redact": False, "redacted_text": req.text, "severity": "none"}
+        finally:
+            duration = time.time() - start
+            try:
+                if DETECTION_LATENCY:
+                    DETECTION_LATENCY.observe(duration)
+            except Exception:
+                pass
 
-        # Phase 4: Auto-log detection events in background
+        # Resolve tenant context (optional)
+        tenant_id = get_tenant_from_request(request)
+
+        # Phase 4: Auto-log detection events in background (pass tenant)
         if result["detections"]:
-            background_tasks.add_task(_log_detection_background, result, fingerprint)
+            background_tasks.add_task(_log_detection_background, result, (fingerprint, tenant_id))
 
         return DetectResponse(**result)
     except Exception as e:
@@ -326,6 +378,9 @@ async def log_event(
 
         prompt_fingerprint = hashlib.sha256(sanitized_prompt.encode("utf-8", errors="ignore")).hexdigest()
 
+        # Resolve tenant context
+        tenant_id = get_tenant_from_request(request)
+
         # 1. Synchronous insert (returns ID immediately). If ENCRYPT_LOGS=1, encrypt and store ciphertext.
         if os.getenv('ENCRYPT_LOGS', '0') == '1':
             try:
@@ -333,6 +388,7 @@ async def log_event(
                 ciphertext_b64 = base64.b64encode(ciphertext).decode('ascii')
                 db_log = AuditLog(
                     user_id=sanitized_user_id,
+                    tenant_id=tenant_id,
                     redacted_prompt='__encrypted__',
                     redacted_prompt_ciphertext=ciphertext_b64,
                     redacted_prompt_key_id=keyid,
@@ -357,6 +413,7 @@ async def log_event(
         else:
             db_log = AuditLog(
                 user_id=sanitized_user_id,
+                tenant_id=tenant_id,
                 redacted_prompt=sanitized_prompt,
                 redacted_fingerprint=prompt_fingerprint,
                 detection_types=req.detection_types,

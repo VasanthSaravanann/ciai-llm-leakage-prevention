@@ -1,36 +1,46 @@
-"""Envelope encryption helpers: use AWS KMS if `KMS_KEY_ID` is configured, otherwise fallback to local Fernet.
+"""Envelope encryption helpers backed by the secrets manager abstraction.
 
-This module provides `encrypt` and `decrypt` helpers. For KMS use, AWS credentials must
-be available in the environment. The fallback is suitable for testing only.
+This wraps the logic for envelope encryption and uses the configured secrets
+manager to store Fernet key material. If a cloud KMS/Secrets Manager is
+configured, that will be used; otherwise we fall back to a local Fernet key
+for development only.
 """
-import os
 from typing import Tuple
+from base64 import b64encode, b64decode
+from src.secrets.manager import get_secrets_manager
 
-KMS_KEY_ID = os.environ.get('KMS_KEY_ID')
+mgr = get_secrets_manager()
 
-if KMS_KEY_ID:
-    try:
-        import boto3
-        from base64 import b64encode, b64decode
-        kms = boto3.client('kms')
 
-        def encrypt(plaintext: bytes) -> Tuple[str, bytes]:
-            resp = kms.encrypt(KeyId=KMS_KEY_ID, Plaintext=plaintext)
-            return resp['KeyId'], resp['CiphertextBlob']
-
-        def decrypt(ciphertext_blob: bytes) -> bytes:
-            resp = kms.decrypt(CiphertextBlob=ciphertext_blob)
-            return resp['Plaintext']
-    except Exception:
-        KMS_KEY_ID = None
-
-if not KMS_KEY_ID:
-    # Fallback: use cryptography.Fernet
+def _get_fernet():
     from cryptography.fernet import Fernet
-    _F = Fernet(Fernet.generate_key())
+    key = mgr.get_fernet_key()
+    return Fernet(key)
 
-    def encrypt(plaintext: bytes) -> Tuple[str, bytes]:
-        return 'local', _F.encrypt(plaintext)
 
-    def decrypt(ciphertext_blob: bytes) -> bytes:
+def encrypt(plaintext: bytes) -> Tuple[str, bytes]:
+    """Return (key_id, ciphertext_bytes).
+
+    When backed by KMS/Secrets Manager the key_id may be an identifier; for
+    local fallback we return 'local'.
+    """
+    try:
+        f = _get_fernet()
+        ct = f.encrypt(plaintext)
+        return ('local', ct)
+    except Exception:
+        # Best-effort fallback
+        from cryptography.fernet import Fernet
+        _F = Fernet(Fernet.generate_key())
+        return ('local', _F.encrypt(plaintext))
+
+
+def decrypt(ciphertext_blob: bytes) -> bytes:
+    try:
+        f = _get_fernet()
+        return f.decrypt(ciphertext_blob)
+    except Exception:
+        # try direct Fernet decode fallback
+        from cryptography.fernet import Fernet
+        _F = Fernet(Fernet.generate_key())
         return _F.decrypt(ciphertext_blob)

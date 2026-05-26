@@ -10,6 +10,7 @@ class AuditLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
     user_id = Column(String, index=True)
+    tenant_id = Column(String, index=True, nullable=True)
     # Store only redacted prompt text (no raw prompt). Keep fingerprint for lookup.
     redacted_prompt = Column(Text)
     redacted_fingerprint = Column(String(128), index=True)
