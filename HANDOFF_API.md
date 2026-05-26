@@ -24,12 +24,12 @@ Edit `.env` with your settings: database credentials, Redis connection, JWT/OIDC
 
 #### 3. Start Services
 ```bash
-docker-compose -f docker-compose.api.yml up -d
+docker compose -f docker-compose.api.yml up -d
 ```
 
 #### 4. Run Migrations
 ```bash
-docker-compose -f docker-compose.api.yml exec web alembic upgrade head
+docker compose -f docker-compose.api.yml exec web alembic upgrade head
 ```
 
 #### 5. Verify Deployment
@@ -39,12 +39,13 @@ bash scripts/smoke_test.sh
 
 ## API Endpoints
 
-All endpoints accept `X-API-KEY` header or a Bearer JWT (if configured).
+All endpoints accept X-API-KEY header or a Bearer token. In enterprise mode, prefer OIDC Bearer tokens and RBAC claims.
 
 - `POST /detect` – Analyze text for sensitive data
 - `GET /health` – Health check (admin guarded)
 - `POST /log` – Store audit events
 - `GET /metrics` – Prometheus metrics (admin only)
+- `GET /slo` – In-app SLO snapshot (admin/metrics role)
 - `GET /dashboard` – Audit log viewer (admin only)
 
 ## Testing
@@ -71,12 +72,14 @@ curl -H "X-API-KEY: $API_KEY" http://localhost:8000/metrics
 ## Security Checklist
 
 - API key configured and rotated
+- OIDC enabled (OIDC_ENABLED=1) with issuer/audience/JWKS configured
 - Database credentials strong
 - CORS/CSP configured
 - Rate limits enabled
 - TLS configured in production
 - Audit logging enabled
 - Redis password set
+- SECRETS_MODE=managed_required with KMS or Vault configured
 
 ## Troubleshooting
 

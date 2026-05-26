@@ -1,7 +1,7 @@
+from collections import deque
+import threading
+
 from src.config import get_api_keys
-from jose import JWTError, jwt
-from datetime import datetime, timedelta
-from typing import Optional
 from src.config import settings
 """
 CIAI FastAPI Control Plane
@@ -20,7 +20,6 @@ Security:
 """
 
 import html
-import logging
 import os
 
 from fastapi import FastAPI, HTTPException, Depends, Security, BackgroundTasks, Request
@@ -30,16 +29,15 @@ from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
-from starlette.status import HTTP_403_FORBIDDEN
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
+from starlette.status import HTTP_403_FORBIDDEN
 
 from src.detection.detect import detect_sensitive
-from src.config import settings
-from src.auth import ensure_admin, get_tenant_from_request
+from src.auth import authenticate_request, ensure_permission, require_tenant
 from src.logging.database import engine, get_db, SessionLocal
 from src.logging.models import Base, AuditLog
 from src.logging.alerts import send_alert_email, should_send_alert
@@ -69,22 +67,20 @@ rate_limiter = RateLimiter(getattr(settings, 'REDIS_URL', None))
 api_key_header = APIKeyHeader(name=settings.API_KEY_NAME, auto_error=False)
 
 
-async def get_api_key(api_key: str = Security(api_key_header)):
+async def get_api_key(request: Request, api_key: str = Security(api_key_header)):
     # Accept any key present in the configured API_KEYS list (rotatable)
     valid_keys = get_api_keys()
     if api_key in valid_keys:
         return api_key
 
-    # Also accept Bearer JWT tokens in the Authorization header
-    # The APIKeyHeader extractor will put the header value here if supplied
-    if api_key and api_key.startswith('Bearer '):
-        token = api_key.split(' ', 1)[1]
-        try:
-            payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-            # Optionally, check claims like exp, sub, scopes
-            return token
-        except JWTError:
-            pass
+    # Also allow JWT/OIDC bearer tokens from Authorization header.
+    try:
+        ctx = authenticate_request(request)
+        if ctx.get("auth_type") in {"jwt", "oidc_jwt"}:
+            return "bearer"
+    except HTTPException:
+        pass
+
     raise HTTPException(
         status_code=HTTP_403_FORBIDDEN, detail="Invalid or missing API key"
     )
@@ -93,14 +89,62 @@ async def get_api_key(api_key: str = Security(api_key_header)):
 try:
     from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST
     REQUEST_COUNTER = Counter('ciai_requests_total', 'Total requests to CIAI API')
+    DETECTION_TOTAL_COUNTER = Counter('ciai_detection_total', 'Total detection attempts')
+    DETECTION_ERROR_COUNTER = Counter('ciai_detection_errors_total', 'Total detection failures')
+    SLO_BREACH_COUNTER = Counter('ciai_slo_breaches_total', 'SLO breach events observed by application')
     try:
         from prometheus_client import Histogram
         DETECTION_LATENCY = Histogram('ciai_detection_latency_seconds', 'Detection latency in seconds')
+        REQUEST_LATENCY = Histogram('ciai_request_latency_seconds', 'API request latency in seconds')
     except Exception:
         DETECTION_LATENCY = None
+        REQUEST_LATENCY = None
 except Exception:
     REQUEST_COUNTER = None
+    DETECTION_TOTAL_COUNTER = None
+    DETECTION_ERROR_COUNTER = None
+    SLO_BREACH_COUNTER = None
     DETECTION_LATENCY = None
+    REQUEST_LATENCY = None
+
+
+_SLO_LOCK = threading.Lock()
+_DETECTION_LATENCY_WINDOW = deque(maxlen=3000)
+_DETECTION_TOTAL = 0
+_DETECTION_ERRORS = 0
+
+
+def _record_detection_slo(latency_seconds: float, is_error: bool) -> dict | None:
+    """Track in-memory SLO window and return breach metadata when threshold is exceeded."""
+    global _DETECTION_TOTAL, _DETECTION_ERRORS
+    with _SLO_LOCK:
+        _DETECTION_TOTAL += 1
+        if is_error:
+            _DETECTION_ERRORS += 1
+        _DETECTION_LATENCY_WINDOW.append(latency_seconds)
+
+        # Not enough samples to evaluate meaningful p95.
+        if len(_DETECTION_LATENCY_WINDOW) < 20:
+            return None
+
+        vals = sorted(_DETECTION_LATENCY_WINDOW)
+        idx = max(0, int(0.95 * (len(vals) - 1)))
+        p95_ms = vals[idx] * 1000.0
+        err_rate = _DETECTION_ERRORS / max(1, _DETECTION_TOTAL)
+
+        slo_p95_target = float(getattr(settings, "SLO_P95_DETECTION_MS", 300))
+        slo_error_target = float(getattr(settings, "SLO_MAX_DETECTION_ERROR_RATE", 0.01))
+
+        if p95_ms > slo_p95_target or err_rate > slo_error_target:
+            if SLO_BREACH_COUNTER:
+                SLO_BREACH_COUNTER.inc()
+            return {
+                "p95_ms": round(p95_ms, 2),
+                "error_rate": round(err_rate, 4),
+                "p95_target_ms": slo_p95_target,
+                "error_target": slo_error_target,
+            }
+        return None
 
 
 
@@ -180,40 +224,61 @@ class LogResponse(BaseModel):
 @limiter.limit("60/minute")
 async def health(request: Request):
     """Health check endpoint."""
-    ensure_admin(request)
+    ensure_permission(request, "view_metrics")
     if REQUEST_COUNTER:
         REQUEST_COUNTER.inc()
     return {"status": "ok", "service": "ciai-detection"}
 
 
 @app.get('/metrics')
-async def metrics():
-    # Require admin when configured
-    # NOTE: metrics endpoint may be sensitive; ensure_admin will be a no-op unless ADMIN_AUTH_REQUIRED=1
-    # Access Request object via global import pattern (FastAPI allows injection but we keep simple check by
-    # recreating a lightweight Request from the context is not trivial here). If ADMIN_AUTH_REQUIRED is set,
-    # Prometheus should scrape using an admin API key or bearer token. We'll accept that ensure_admin expects
-    # a Request; to keep endpoint signature simple, require admin checks via header presence on the incoming call.
-    # Create a fake Request-like wrapper to expose headers
-    from starlette.requests import Request as StarletteRequest
-    # FastAPI will pass a Request if needed; attempt to read from global state via ASGI scope is complex,
-    # so keep simple: allow metrics unless ADMIN_AUTH_REQUIRED is enabled and metrics caller did not supply admin key.
-    if getattr(settings, 'ADMIN_AUTH_REQUIRED', False):
-        # Build minimal Request from current context: access headers via fastapi dependencies isn't available here,
-        # so raise a clear error instructing deployers to set ADMIN_AUTH_REQUIRED only when they wire auth properly.
-        raise HTTPException(status_code=500, detail="ADMIN_AUTH_REQUIRED enabled but metrics endpoint requires a Request-based admin check")
+async def metrics(request: Request):
+    ensure_permission(request, "view_metrics")
     if REQUEST_COUNTER is None:
         return Response(content='metrics_unavailable', media_type='text/plain')
     data = generate_latest()
     return Response(content=data, media_type=CONTENT_TYPE_LATEST)
 
 
+@app.get('/slo')
+async def slo_status(request: Request):
+    """Application-level SLO snapshot (short moving window)."""
+    ensure_permission(request, "view_metrics")
+    with _SLO_LOCK:
+        if not _DETECTION_LATENCY_WINDOW:
+            return {
+                "window_size": 0,
+                "detection_error_rate": 0,
+                "p95_detection_ms": 0,
+                "targets": {
+                    "p95_detection_ms": settings.SLO_P95_DETECTION_MS,
+                    "max_detection_error_rate": settings.SLO_MAX_DETECTION_ERROR_RATE,
+                },
+            }
+        vals = sorted(_DETECTION_LATENCY_WINDOW)
+        idx = max(0, int(0.95 * (len(vals) - 1)))
+        p95_ms = vals[idx] * 1000.0
+        error_rate = _DETECTION_ERRORS / max(1, _DETECTION_TOTAL)
+        return {
+            "window_size": len(_DETECTION_LATENCY_WINDOW),
+            "detection_error_rate": round(error_rate, 4),
+            "p95_detection_ms": round(p95_ms, 2),
+            "targets": {
+                "p95_detection_ms": settings.SLO_P95_DETECTION_MS,
+                "max_detection_error_rate": settings.SLO_MAX_DETECTION_ERROR_RATE,
+            },
+        }
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 @limiter.limit("30/minute")
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     """Render the audit log dashboard."""
-    ensure_admin(request)
-    logs = db.query(AuditLog).order_by(desc(AuditLog.timestamp)).limit(100).all()
+    ensure_permission(request, "view_dashboard")
+    tenant_id = require_tenant(request)
+    query = db.query(AuditLog)
+    if tenant_id:
+        query = query.filter(AuditLog.tenant_id == tenant_id)
+    logs = query.order_by(desc(AuditLog.timestamp)).limit(100).all()
     return templates.TemplateResponse("dashboard.html", {"request": request, "logs": logs})
 
 
@@ -255,6 +320,7 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
             except Exception:
                 db_log = AuditLog(
                     user_id="direct-api",
+                    tenant_id=tenant_id,
                     redacted_prompt=text,
                     redacted_fingerprint=fingerprint,
                     detection_types=result["detections"],
@@ -285,57 +351,76 @@ def _log_detection_background(result: dict, fingerprint: str | None = None):
 @limiter.limit("30/minute")
 async def detect(request: Request, req: DetectRequest, background_tasks: BackgroundTasks, api_key: str = Depends(get_api_key)):
     """Analyze text for sensitive data (PII, secrets, India-specific IDs)."""
+    # Enforce Content-Length/request size limits early to avoid large payload DoS
     try:
-        # Enforce Content-Length/request size limits early to avoid large payload DoS
-        try:
-            content_length = request.headers.get("content-length")
-            if content_length is not None and int(content_length) > settings.MAX_REQUEST_SIZE:
-                raise HTTPException(status_code=413, detail="Payload too large")
-        except ValueError:
-            # malformed header — reject
-            raise HTTPException(status_code=400, detail="Invalid Content-Length header")
+        content_length = request.headers.get("content-length")
+        if content_length is not None and int(content_length) > settings.MAX_REQUEST_SIZE:
+            raise HTTPException(status_code=413, detail="Payload too large")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid Content-Length header") from exc
 
-        # Enforce per-key quota
-        if api_key:
-            allowed = rate_limiter.allow(api_key)
-            if not allowed:
-                raise HTTPException(status_code=429, detail="Rate quota exceeded")
+    # Enforce per-key quota
+    if api_key:
+        allowed = rate_limiter.allow(api_key)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Rate quota exceeded")
 
-        # Compute fingerprint of the incoming text (sha256 hex) for auditing
-        import hashlib
+    # Enforce tenant context when required.
+    tenant_id = require_tenant(request)
 
-        fingerprint = hashlib.sha256(req.text.encode("utf-8", errors="ignore")).hexdigest()
+    # Compute fingerprint of the incoming text (sha256 hex) for auditing.
+    import hashlib
+    import time
 
-        # Instrument detection latency if Prometheus is available
-        import time
-        start = time.time()
-        try:
-            result = detect_sensitive(req.text)
-        except Exception:
-            # Detection engine failed. Respect gateway mode.
-            gateway_mode = getattr(settings, 'GATEWAY_MODE', os.getenv('GATEWAY_MODE', 'fail_open'))
-            if gateway_mode == 'fail_closed':
-                raise HTTPException(status_code=503, detail='Detection subsystem unavailable (fail_closed)')
-            # fail_open: allow request but mark as undetected
-            result = {"detections": [], "block": False, "redact": False, "redacted_text": req.text, "severity": "none"}
-        finally:
-            duration = time.time() - start
-            try:
-                if DETECTION_LATENCY:
-                    DETECTION_LATENCY.observe(duration)
-            except Exception:
-                pass
+    fingerprint = hashlib.sha256(req.text.encode("utf-8", errors="ignore")).hexdigest()
 
-        # Resolve tenant context (optional)
-        tenant_id = get_tenant_from_request(request)
+    detection_error = False
+    start = time.time()
+    try:
+        result = detect_sensitive(req.text)
+    except Exception:
+        detection_error = True
+        # Detection engine failed. Respect gateway mode.
+        gateway_mode = getattr(settings, 'GATEWAY_MODE', os.getenv('GATEWAY_MODE', 'fail_open'))
+        if gateway_mode == 'fail_closed':
+            if DETECTION_ERROR_COUNTER:
+                DETECTION_ERROR_COUNTER.inc()
+            raise HTTPException(status_code=503, detail='Detection subsystem unavailable (fail_closed)')
+        # fail_open: allow request but mark as undetected
+        result = {"detections": [], "block": False, "redact": False, "redacted_text": req.text, "severity": "none"}
+    finally:
+        duration = time.time() - start
+        if REQUEST_COUNTER:
+            REQUEST_COUNTER.inc()
+        if DETECTION_TOTAL_COUNTER:
+            DETECTION_TOTAL_COUNTER.inc()
+        if DETECTION_LATENCY:
+            DETECTION_LATENCY.observe(duration)
+        if REQUEST_LATENCY:
+            REQUEST_LATENCY.observe(duration)
+        if detection_error and DETECTION_ERROR_COUNTER:
+            DETECTION_ERROR_COUNTER.inc()
 
-        # Phase 4: Auto-log detection events in background (pass tenant)
-        if result["detections"]:
-            background_tasks.add_task(_log_detection_background, result, (fingerprint, tenant_id))
+        breach = _record_detection_slo(duration, detection_error)
+        if breach and settings.SLO_ALERT_RECIPIENT:
+            background_tasks.add_task(
+                send_alert_email,
+                entry={
+                    "user_id": "system",
+                    "severity": "high",
+                    "detection_types": "SLO_BREACH",
+                    "action_taken": "observe",
+                    "timestamp": "now",
+                    "redacted_prompt": f"SLO breach p95={breach['p95_ms']}ms err_rate={breach['error_rate']}",
+                },
+                recipient=settings.SLO_ALERT_RECIPIENT,
+            )
 
-        return DetectResponse(**result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail="Detection failed")
+    # Auto-log detection events in background (pass tenant).
+    if result["detections"]:
+        background_tasks.add_task(_log_detection_background, result, (fingerprint, tenant_id))
+
+    return DetectResponse(**result)
 
 
 @app.post("/log", response_model=LogResponse, dependencies=[Depends(get_api_key)])
@@ -348,69 +433,48 @@ async def log_event(
     api_key: str = Depends(get_api_key)
 ):
     """Store an audit log entry in SQLite and trigger alerts if needed."""
-    try:
-        # Enforce per-key quota for logging as well
-        if api_key:
-            allowed = rate_limiter.allow(api_key)
-            if not allowed:
-                raise HTTPException(status_code=429, detail="Rate quota exceeded")
+    # Enforce per-key quota for logging as well
+    if api_key:
+        allowed = rate_limiter.allow(api_key)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Rate quota exceeded")
 
-        # XSS sanitization
-        sanitized_user_id = sanitize(req.user_id)
-        sanitized_prompt = sanitize(req.redacted_prompt)
-        sanitized_response = sanitize(req.llm_response_redacted) if req.llm_response_redacted else None
-        trace_metadata = {
-            "policy_version": os.getenv("POLICY_VERSION", "v1"),
-            "request_type": "log",
-            "output_moderation": "not-run",
-        }
+    tenant_id = require_tenant(request)
 
-        # Optionally encrypt stored redacted prompt
-        if os.getenv('ENCRYPT_LOGS', '0') == '1':
-            try:
-                keyid, ciphertext = _encrypt(sanitized_prompt.encode('utf-8'))
-                sanitized_prompt = f"__enc__{keyid}::" + base64.b64encode(ciphertext).decode('ascii')
-            except Exception:
-                pass
+    # XSS sanitization
+    sanitized_user_id = sanitize(req.user_id)
+    sanitized_prompt = sanitize(req.redacted_prompt)
+    sanitized_response = sanitize(req.llm_response_redacted) if req.llm_response_redacted else None
+    trace_metadata = {
+        "policy_version": os.getenv("POLICY_VERSION", "v1"),
+        "request_type": "log",
+        "output_moderation": "not-run",
+    }
 
-        # Compute fingerprint of the provided redacted prompt for lookup (do not store raw original)
-        import hashlib
+    # Compute fingerprint of the provided redacted prompt for lookup (do not store raw original)
+    import hashlib
 
-        prompt_fingerprint = hashlib.sha256(sanitized_prompt.encode("utf-8", errors="ignore")).hexdigest()
+    prompt_fingerprint = hashlib.sha256(sanitized_prompt.encode("utf-8", errors="ignore")).hexdigest()
 
-        # Resolve tenant context
-        tenant_id = get_tenant_from_request(request)
-
-        # 1. Synchronous insert (returns ID immediately). If ENCRYPT_LOGS=1, encrypt and store ciphertext.
-        if os.getenv('ENCRYPT_LOGS', '0') == '1':
-            try:
-                keyid, ciphertext = _encrypt(sanitized_prompt.encode('utf-8'))
-                ciphertext_b64 = base64.b64encode(ciphertext).decode('ascii')
-                db_log = AuditLog(
-                    user_id=sanitized_user_id,
-                    tenant_id=tenant_id,
-                    redacted_prompt='__encrypted__',
-                    redacted_prompt_ciphertext=ciphertext_b64,
-                    redacted_prompt_key_id=keyid,
-                    redacted_fingerprint=prompt_fingerprint,
-                    detection_types=req.detection_types,
-                    trace_metadata=trace_metadata,
-                    action=req.action,
-                    severity=req.severity,
-                    llm_response_redacted=sanitized_response
-                )
-            except Exception:
-                db_log = AuditLog(
-                    user_id=sanitized_user_id,
-                    redacted_prompt=sanitized_prompt,
-                    redacted_fingerprint=prompt_fingerprint,
-                    detection_types=req.detection_types,
-                    trace_metadata=trace_metadata,
-                    action=req.action,
-                    severity=req.severity,
-                    llm_response_redacted=sanitized_response
-                )
-        else:
+    # Synchronous insert (returns ID immediately). If ENCRYPT_LOGS=1, encrypt and store ciphertext.
+    if os.getenv('ENCRYPT_LOGS', '0') == '1':
+        try:
+            keyid, ciphertext = _encrypt(sanitized_prompt.encode('utf-8'))
+            ciphertext_b64 = base64.b64encode(ciphertext).decode('ascii')
+            db_log = AuditLog(
+                user_id=sanitized_user_id,
+                tenant_id=tenant_id,
+                redacted_prompt='__encrypted__',
+                redacted_prompt_ciphertext=ciphertext_b64,
+                redacted_prompt_key_id=keyid,
+                redacted_fingerprint=prompt_fingerprint,
+                detection_types=req.detection_types,
+                trace_metadata=trace_metadata,
+                action=req.action,
+                severity=req.severity,
+                llm_response_redacted=sanitized_response
+            )
+        except Exception:
             db_log = AuditLog(
                 user_id=sanitized_user_id,
                 tenant_id=tenant_id,
@@ -422,24 +486,38 @@ async def log_event(
                 severity=req.severity,
                 llm_response_redacted=sanitized_response
             )
+    else:
+        db_log = AuditLog(
+            user_id=sanitized_user_id,
+            tenant_id=tenant_id,
+            redacted_prompt=sanitized_prompt,
+            redacted_fingerprint=prompt_fingerprint,
+            detection_types=req.detection_types,
+            trace_metadata=trace_metadata,
+            action=req.action,
+            severity=req.severity,
+            llm_response_redacted=sanitized_response
+        )
+
+    try:
         db.add(db_log)
         db.commit()
         db.refresh(db_log)
-
-        # 2. Trigger email alert for HIGH severity in background
-        if should_send_alert(req.severity):
-            background_tasks.add_task(
-                send_alert_email,
-                entry={
-                    "user_id": sanitized_user_id,
-                    "redacted_prompt": sanitized_prompt,
-                    "detection_types": ", ".join(req.detection_types),
-                    "action_taken": req.action,
-                    "severity": req.severity,
-                }
-            )
-
-        return LogResponse(status="logged", id=db_log.id)
-    except Exception as e:
+    except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Logging failed")
+        raise HTTPException(status_code=500, detail="Logging failed") from exc
+
+    # Trigger email alert for HIGH severity in background.
+    if should_send_alert(req.severity):
+        background_tasks.add_task(
+            send_alert_email,
+            entry={
+                "user_id": sanitized_user_id,
+                "redacted_prompt": sanitized_prompt,
+                "detection_types": ", ".join(req.detection_types),
+                "action_taken": req.action,
+                "severity": req.severity,
+            }
+        )
+
+    return LogResponse(status="logged", id=db_log.id)

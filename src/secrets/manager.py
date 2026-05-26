@@ -17,6 +17,8 @@ from typing import Optional
 
 
 class BaseSecretsManager:
+    backend_name: str = "base"
+
     def get_secret(self, name: str) -> Optional[str]:
         raise NotImplementedError()
 
@@ -32,6 +34,8 @@ class BaseSecretsManager:
 
 
 class KMSSecretsManager(BaseSecretsManager):
+    backend_name = "kms"
+
     def __init__(self, kms_key_id: str):
         import boto3
         from base64 import b64encode, b64decode
@@ -87,6 +91,8 @@ class KMSSecretsManager(BaseSecretsManager):
 
 
 class VaultSecretsManager(BaseSecretsManager):
+    backend_name = "vault"
+
     def __init__(self, url: str, token: str):
         # hvac is optional
         try:
@@ -137,6 +143,8 @@ class VaultSecretsManager(BaseSecretsManager):
 
 
 class LocalFernetManager(BaseSecretsManager):
+    backend_name = "local"
+
     def __init__(self):
         # store key in file for development
         self.path = os.getenv('FERNET_KEY_FILE', '/tmp/ciai_fernet.key')
@@ -166,6 +174,8 @@ class LocalFernetManager(BaseSecretsManager):
 
 def get_secrets_manager() -> BaseSecretsManager:
     # Priority: AWS KMS/Secrets Manager -> Vault -> Local
+    managed_required = os.getenv('SECRETS_MODE', 'optional').lower() == 'managed_required'
+
     kms_key = os.getenv('KMS_KEY_ID')
     if kms_key:
         try:
@@ -180,5 +190,11 @@ def get_secrets_manager() -> BaseSecretsManager:
             return VaultSecretsManager(vault_url, vault_token)
         except Exception:
             pass
+
+    if managed_required:
+        raise RuntimeError(
+            "SECRETS_MODE=managed_required but no managed backend is configured. "
+            "Set KMS_KEY_ID (AWS) or VAULT_URL/VAULT_TOKEN (Vault)."
+        )
 
     return LocalFernetManager()

@@ -43,8 +43,28 @@ class Settings(BaseSettings):
     ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "")
     # JWT claim that contains role/group information (e.g., 'groups' or 'roles')
     ROLE_CLAIM: str = os.getenv("ROLE_CLAIM", "groups")
+    # Optional OIDC/JWKS verification for enterprise IdP integration.
+    OIDC_ENABLED: bool = bool(int(os.getenv("OIDC_ENABLED", "0")))
+    OIDC_ISSUER: str = os.getenv("OIDC_ISSUER", "")
+    OIDC_AUDIENCE: str = os.getenv("OIDC_AUDIENCE", "")
+    OIDC_JWKS_URL: str = os.getenv("OIDC_JWKS_URL", "")
+    OIDC_JWKS_TTL_SECONDS: int = int(os.getenv("OIDC_JWKS_TTL_SECONDS", "300"))
+    # JSON mapping from external groups/roles to internal RBAC roles.
+    # Example: {"Azure-Admins": "admin", "SecOps": "view_audit"}
+    RBAC_GROUP_MAP_JSON: str = os.getenv("RBAC_GROUP_MAP_JSON", "{}")
     # Gateway mode: 'fail_open' (default) or 'fail_closed'
     GATEWAY_MODE: str = os.getenv("GATEWAY_MODE", "fail_open")
+
+    # Tenant isolation
+    TENANT_ISOLATION_REQUIRED: bool = bool(int(os.getenv("TENANT_ISOLATION_REQUIRED", "0")))
+
+    # Secrets mode: optional (default) or managed_required.
+    SECRETS_MODE: str = os.getenv("SECRETS_MODE", "optional")
+
+    # Minimal SLO settings for in-app alerting.
+    SLO_P95_DETECTION_MS: int = int(os.getenv("SLO_P95_DETECTION_MS", "300"))
+    SLO_MAX_DETECTION_ERROR_RATE: float = float(os.getenv("SLO_MAX_DETECTION_ERROR_RATE", "0.01"))
+    SLO_ALERT_RECIPIENT: str = os.getenv("SLO_ALERT_RECIPIENT", os.getenv("ALERT_EMAIL", ""))
 
     # Data governance
     RETENTION_DAYS: int = int(os.getenv("RETENTION_DAYS", "90"))
