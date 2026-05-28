@@ -123,6 +123,48 @@ class TestAPIKeyDetection:
         result = detect_sensitive("password = SuperSecret123!")
         assert "GENERIC_SECRET" in result["detections"]
 
+    def test_split_api_key_multiline(self):
+        result = detect_sensitive("""-----BEGIN API CONFIG-----\napi_key =\nsk-test-abcdefghijklmnop\n-----END API CONFIG-----""")
+        assert "OPENAI_KEY" in result["detections"]
+
+    def test_bare_aws_secret(self):
+        result = detect_sensitive("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+        assert "AWS_SECRET" in result["detections"]
+
+
+class TestExtendedPIIDetection:
+    def test_ipv4_detection(self):
+        result = detect_sensitive("ping 192.168.1.1")
+        assert "IP4" in result["detections"]
+
+    def test_ipv6_detection(self):
+        result = detect_sensitive("route fe80::1")
+        assert "IP6" in result["detections"]
+
+    def test_date_detection(self):
+        result = detect_sensitive("DOB: 14/08/1997")
+        assert "DATE" in result["detections"]
+
+    def test_upi_detection(self):
+        result = detect_sensitive("pay to rahul@ybl")
+        assert "UPI_ID" in result["detections"]
+
+    def test_jwt_detection(self):
+        result = detect_sensitive("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9obiJ9.signature")
+        assert "JWT" in result["detections"]
+
+    def test_ocr_pan_detection(self):
+        result = detect_sensitive("A B C D E 1 2 3 4 F")
+        assert "PAN" in result["detections"]
+
+    def test_ocr_aadhaar_detection(self):
+        result = detect_sensitive("234S 6789 l234")
+        assert "AADHAAR" in result["detections"]
+
+    def test_ocr_credit_card_detection(self):
+        result = detect_sensitive("4lll-llll-llll-llll")
+        assert "CREDIT_CARD" in result["detections"]
+
 
 # ---------------------------------------------------------------------------
 # Combined / severity tests

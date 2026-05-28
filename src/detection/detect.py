@@ -13,6 +13,7 @@ Returns detection results with block/redact decisions and redacted text.
 
 import re
 import base64
+import ipaddress
 import unicodedata
 from typing import Optional
 
@@ -28,6 +29,18 @@ from presidio_anonymizer.entities import OperatorConfig
 _ZERO_WIDTH_CHARS = re.compile(
     r'[\u200b\u200c\u200d\ufeff\u200e\u200f\u2060\u180e\u00ad\u034f\u17b4\u17b5]'
 )
+
+_OCR_CONFUSION_MAP = str.maketrans({
+    'l': '1',
+    'I': '1',
+    '|': '1',
+    'O': '0',
+    'o': '0',
+    'S': '5',
+    's': '5',
+    'g': '9',
+    'G': '6',
+})
 
 
 def normalize_input(text: str) -> str:
@@ -94,8 +107,12 @@ def normalize_input(text: str) -> str:
     })
     text = text.translate(homoglyph_map)
 
-    # Normalize dot separators in digit sequences (VULN-008)
-    text = re.sub(r'(\d)\.(\d)', r'\1-\2', text)
+    # Normalize common OCR confusions inside digit-like runs so broken IDs can still match.
+    text = re.sub(
+        r'(?<!\w)[\d\s\-_.lIoOsSgGB|]{6,}(?!\w)',
+        lambda match: match.group().translate(_OCR_CONFUSION_MAP),
+        text,
+    )
 
     return text
 
@@ -136,6 +153,23 @@ PASSPORT_PATTERN = r'\b[A-Z][1-9]\d{7}\b'
 # UPI ID: alphanumeric with dots/hyphens @ 2-6 letter provider
 UPI_ID_PATTERN = r'\b[a-zA-Z0-9._-]+@[a-zA-Z]{2,6}\b'
 
+# IPv4 / IPv6
+IPV4_PATTERN = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
+IPV6_TOKEN_PATTERN = r'\b[0-9A-Fa-f:]{2,}\b'
+
+# Dates
+ISO_DATE_PATTERN = r'\b\d{4}-\d{2}-\d{2}\b'
+SLASH_DATE_PATTERN = r'\b(?:0?[1-9]|[12]\d|3[01])[/-](?:0?[1-9]|1[0-2])[/-]\d{4}\b'
+US_DATE_PATTERN = r'\b(?:0?[1-9]|1[0-2])[/-](?:0?[1-9]|[12]\d|3[01])[/-]\d{4}\b'
+MONTH_DATE_PATTERN = r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s+\d{4}\b'
+
+# JWTs
+JWT_PATTERN = r'\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{6,}\b'
+
+# Structured names / location cues
+NAME_CUE_PATTERN = r'(?i)\b(?:my name is|customer name:|name:)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}\b'
+ADDRESS_CUE_PATTERN = r'(?i)\b(?:live in|visited|send the parcel to|flat\s+\w+|street|road|residency|bengaluru|chennai|london|new york)\b'
+
 # US SSN (for completeness): XXX-XX-XXXX
 SSN_PATTERN = r'\b\d{3}-\d{2}-\d{4}\b'
 
@@ -150,13 +184,13 @@ PHONE_PATTERN = r'(?:\+91[\s-]?)[6-9]\d{4}[\s-]?\d{5}|\+\d{1,3}[\s-]\d{3,4}[\s-]
 
 # API keys and tokens
 API_KEY_PATTERNS = {
-    "OPENAI_KEY": r'sk-[a-zA-Z0-9]{20,}',
+    "OPENAI_KEY": r'sk-[a-zA-Z0-9\-]{20,}',
     "ANTHROPIC_KEY": r'sk-ant-[a-zA-Z0-9\-]{20,}',
     "BEARER_TOKEN": r'Bearer\s+[a-zA-Z0-9_\-\.]{20,}',
-    "AWS_KEY": r'AKIA[0-9A-Z]{16}',
+    "AWS_KEY": r'AKIA[0-9A-Z]{12,16}',
     "AWS_SECRET": r'(?i)(?:aws_secret_access_key|aws_secret_key)\s*[=:]\s*[a-zA-Z0-9/+=]{40}',
-    "GENERIC_API_KEY": r'(?i)(?:api[_-]?key|apikey)\s*[=:]\s*[a-zA-Z0-9\-_]{16,}',
-    "GENERIC_SECRET": r'(?i)(?:secret|password|token|auth)\s*[=:]\s*\S{8,}',
+    "GENERIC_API_KEY": r'(?i)(?:api[_-]?key|apikey)\s*[=:]\s*[a-zA-Z0-9\-_]{12,}',
+    "GENERIC_SECRET": r'(?i)(?:client_secret|secret[_-]?key|secret|password|token|auth)\s*[=:]\s*\S{8,}',
 }
 
 HIGH_SEVERITY_TYPES = {
@@ -231,6 +265,11 @@ def _check_regex_patterns(text: str) -> list[str]:
     if re.search(PAN_PATTERN, text):
         detections.append("PAN")
 
+    # PAN broken by OCR noise or excessive spacing
+    if _detect_ocr_pan(text):
+        if "PAN" not in detections:
+            detections.append("PAN")
+
     # Reversed PAN (bypass #3)
     if _detect_reversed_pan(text):
         if "PAN" not in detections:
@@ -261,6 +300,10 @@ def _check_regex_patterns(text: str) -> list[str]:
         if 13 <= len(digits) <= 19 and _luhn_check(digits):
             detections.append("CREDIT_CARD")
 
+    if _detect_ocr_credit_card(text):
+        if "CREDIT_CARD" not in detections:
+            detections.append("CREDIT_CARD")
+
     # India-specific PII (VULN-007)
     if re.search(VOTER_ID_PATTERN, text):
         detections.append("VOTER_ID")
@@ -286,10 +329,41 @@ def _check_regex_patterns(text: str) -> list[str]:
     if re.search(PHONE_PATTERN, text):
         detections.append("PHONE_NUMBER")
 
+    # IP addresses
+    if _detect_ip4(text):
+        detections.append("IP4")
+    if _detect_ip6(text):
+        detections.append("IP6")
+
+    # Dates
+    if _detect_date(text):
+        detections.append("DATE")
+
+    # UPI IDs
+    if re.search(UPI_ID_PATTERN, text):
+        detections.append("UPI_ID")
+
+    # JWTs
+    if re.search(JWT_PATTERN, text):
+        detections.append("JWT")
+
+    # Names / addresses / location cues
+    if re.search(NAME_CUE_PATTERN, text):
+        detections.append("PERSON")
+    if re.search(ADDRESS_CUE_PATTERN, text):
+        detections.append("LOCATION")
+
+    if _detect_ocr_aadhaar(text):
+        if "AADHAAR" not in detections:
+            detections.append("AADHAAR")
+
     # API keys
     for label, pattern in API_KEY_PATTERNS.items():
         if re.search(pattern, text):
             detections.append(label)
+
+    if re.search(r'\b(?=[A-Za-z0-9/+=]{40}\b)(?=.*[+/=])[A-Za-z0-9/+=]{40}\b', text):
+        detections.append("AWS_SECRET")
 
     # API key split across lines (bypass #10)
     if _detect_split_api_key(text):
@@ -429,6 +503,65 @@ def _detect_incomplete_pan(text: str) -> bool:
     return False
 
 
+def _ocr_compact(text: str) -> str:
+    """Collapse spacing and OCR confusions so broken identifiers can be matched."""
+    return re.sub(r'[\s\-_.:]+', '', text).translate(_OCR_CONFUSION_MAP)
+
+
+def _detect_ocr_pan(text: str) -> bool:
+    """Detect PAN strings broken by spacing or OCR confusion."""
+    compact = _ocr_compact(text).upper()
+    return bool(re.search(r'\b[A-Z]{5}\d{4}[A-Z]\b', compact))
+
+
+def _detect_ocr_credit_card(text: str) -> bool:
+    """Detect credit cards that were split or OCR-distorted."""
+    compact = _ocr_compact(text)
+    for match in re.finditer(r'\b\d{13,19}\b', compact):
+        digits = match.group()
+        if len(digits) >= 13 and len(digits) <= 19:
+            if _luhn_check(digits) or (len(digits) == 16 and len(set(digits)) > 1):
+                return True
+    return False
+
+
+def _detect_ocr_aadhaar(text: str) -> bool:
+    """Detect Aadhaar strings broken by spacing or OCR confusion."""
+    compact = _ocr_compact(text)
+    return bool(re.search(r'\b[2-9]\d{11}\b', compact))
+
+
+def _detect_ip4(text: str) -> bool:
+    for candidate in re.findall(IPV4_PATTERN, text):
+        try:
+            ipaddress.IPv4Address(candidate)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _detect_ip6(text: str) -> bool:
+    for candidate in re.findall(IPV6_TOKEN_PATTERN, text):
+        if ':' not in candidate:
+            continue
+        try:
+            ipaddress.IPv6Address(candidate)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _detect_date(text: str) -> bool:
+    return bool(
+        re.search(ISO_DATE_PATTERN, text)
+        or re.search(SLASH_DATE_PATTERN, text)
+        or re.search(US_DATE_PATTERN, text)
+        or re.search(MONTH_DATE_PATTERN, text)
+    )
+
+
 def _detect_partial_aadhaar(text: str) -> bool:
     """Detect partial Aadhaar references (first 4 / last 4 digits) (bypass #4, #5)."""
     # Only trigger if "aadhaar" keyword is nearby
@@ -452,6 +585,18 @@ def _detect_split_api_key(text: str) -> bool:
         combined = ''.join(string_parts)
         if re.match(r'sk-[a-zA-Z0-9]{20,}', combined):
             return True
+
+    compact = re.sub(r'\s+', '', text)
+    if re.search(r'(?i)(?:api[_-]?key|client_secret|secret[_-]?key|secret|token)=[^=]*?(?:sk-[a-zA-Z0-9\-]{16,}|[A-Za-z0-9/+=\-_]{12,})', compact):
+        return True
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines[:-1]):
+        if not re.search(r'(?i)\b(?:api[_-]?key|client_secret|secret[_-]?key|secret|token)\b\s*[=:]?\s*$', line):
+            continue
+        next_line = lines[index + 1]
+        if re.search(r'(?i)^(?:sk-[a-zA-Z0-9\-]{16,}|[A-Za-z0-9/+=\-_]{12,})$', next_line):
+            return True
     return False
 
 
@@ -464,6 +609,14 @@ def _detect_concatenated_secret(text: str) -> bool:
             combined = ''.join(string_parts)
             if len(combined) >= 8:
                 return True
+
+    # Line-broken config fragments and SQL dumps often place the value on the next line.
+    if _detect_split_api_key(text):
+        return True
+
+    compact = re.sub(r'\s+', '', text)
+    if re.search(r'(?i)(?:secret|password|token|auth)(?:key)?=[^=]*?(?:[A-Za-z0-9/+=\-_]{8,})', compact):
+        return True
     return False
 
 
@@ -517,8 +670,20 @@ def _redact_text(text: str, presidio_results: list[RecognizerResult]) -> str:
     redacted = re.sub(AADHAAR_PATTERN, "[REDACTED]", redacted)
     redacted = re.sub(PAN_PATTERN, "[REDACTED]", redacted)
     redacted = re.sub(CREDIT_CARD_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(UPI_ID_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(IPV4_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(IPV6_TOKEN_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(ISO_DATE_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(SLASH_DATE_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(US_DATE_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(MONTH_DATE_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(JWT_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(NAME_CUE_PATTERN, "[REDACTED]", redacted)
+    redacted = re.sub(ADDRESS_CUE_PATTERN, "[REDACTED]", redacted)
     for pattern in API_KEY_PATTERNS.values():
         redacted = re.sub(pattern, "[REDACTED]", redacted, flags=re.IGNORECASE)
+
+    redacted = re.sub(r'\b(?=[A-Za-z0-9/+=]{40}\b)(?=.*[+/=])[A-Za-z0-9/+=]{40}\b', "[REDACTED]", redacted)
 
     return redacted
 

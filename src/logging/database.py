@@ -33,9 +33,22 @@ def _ensure_sqlite_schema():
             return
 
         cols = [row[1] for row in rows]
-        if "redacted_fingerprint" not in cols:
-            # Add the missing column (best-effort migration)
-            conn.execute(text("ALTER TABLE audit_log ADD COLUMN redacted_fingerprint VARCHAR(128)"))
+        column_alters = {
+            "tenant_id": "ALTER TABLE audit_log ADD COLUMN tenant_id VARCHAR(255)",
+            "redacted_fingerprint": "ALTER TABLE audit_log ADD COLUMN redacted_fingerprint VARCHAR(128)",
+            "redacted_prompt_ciphertext": "ALTER TABLE audit_log ADD COLUMN redacted_prompt_ciphertext TEXT",
+            "redacted_prompt_key_id": "ALTER TABLE audit_log ADD COLUMN redacted_prompt_key_id VARCHAR(256)",
+            "trace_metadata": "ALTER TABLE audit_log ADD COLUMN trace_metadata JSON",
+            "llm_response_redacted": "ALTER TABLE audit_log ADD COLUMN llm_response_redacted TEXT",
+        }
+
+        altered = False
+        for column_name, alter_sql in column_alters.items():
+            if column_name not in cols:
+                conn.execute(text(alter_sql))
+                altered = True
+
+        if altered:
             conn.commit()
 
 
