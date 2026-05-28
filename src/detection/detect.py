@@ -144,6 +144,10 @@ VOTER_ID_PATTERN = r'\b[A-Z]{3}\d{7}\b'
 # Handles: DL-0420110012345, DL0420110012345, DL 0420110012345
 DRIVING_LICENSE_PATTERN = r'\bDL[\s-]?\d{13,15}\b'
 
+# Some driving-license-like numbers omit the DL prefix and start with state code
+# e.g. TN0120110012345, KA0520120034567, MH1420110012345
+DRIVING_LICENSE_ALT_PATTERN = r'\b[A-Z]{2}\d{13,15}\b'
+
 # GST Number: 2 digits + 5 alphanumeric + 4 digits + 1 alphanumeric + Z + 1 alphanumeric
 GST_PATTERN = r'\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}\b'
 
@@ -170,6 +174,12 @@ JWT_PATTERN = r'\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{6,}
 NAME_CUE_PATTERN = r'(?i)\b(?:my name is|customer name:|name:)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}\b'
 ADDRESS_CUE_PATTERN = r'(?i)\b(?:live in|visited|send the parcel to|flat\s+\w+|street|road|residency|bengaluru|chennai|london|new york)\b'
 
+# Honorific/name pattern to catch 'Dr. Priya Menon', 'Mr John Doe', etc.
+NAME_HONORIFIC_PATTERN = r'\b(?:Dr|Mr|Mrs|Ms|Miss)\.?(?:\s+[A-Z][a-z]+){1,2}\b'
+
+# Simple Title-Case two-word name pattern as a final fallback (e.g. 'Rahul Sharma')
+NAME_SIMPLE_PATTERN = r'\b[A-Z][a-z]{2,}\s+[A-Z][a-z]{2,}\b(?!:)'
+
 # US SSN (for completeness): XXX-XX-XXXX
 SSN_PATTERN = r'\b\d{3}-\d{2}-\d{4}\b'
 
@@ -182,11 +192,19 @@ EMAIL_PATTERN = r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b'
 # Restrictive to avoid false positives on long digit strings
 PHONE_PATTERN = r'(?:\+91[\s-]?)[6-9]\d{4}[\s-]?\d{5}|\+\d{1,3}[\s-]\d{3,4}[\s-]\d{3,4}[\s-]\d{4}'
 
+# More permissive Indian phone forms (bare 10-digit, leading 0 or country code)
+PHONE_IN_INDIA_PATTERN = r'\b(?:0?91|91)?[6-9]\d{9}\b'
+
+# US phone common patterns including plain 10-digit (stricter to avoid false positives)
+# Match formatted forms like (555) 123-4567, or 10-digit starting with valid NANP prefixes
+PHONE_US_PATTERN = r'\(\d{3}\)\s*\d{3}[-\s]?\d{4}|\b[2-9]\d{2}[2-9]\d{6}\b'
+
 # API keys and tokens
 API_KEY_PATTERNS = {
     "OPENAI_KEY": r'sk-[a-zA-Z0-9\-]{20,}',
     "ANTHROPIC_KEY": r'sk-ant-[a-zA-Z0-9\-]{20,}',
-    "BEARER_TOKEN": r'Bearer\s+[a-zA-Z0-9_\-\.]{20,}',
+    # Relax bearer token length to catch shorter tokens in combined stress tests
+    "BEARER_TOKEN": r'Bearer\s+[a-zA-Z0-9_\-\.]{8,}',
     "AWS_KEY": r'AKIA[0-9A-Z]{12,16}',
     "AWS_SECRET": r'(?i)(?:aws_secret_access_key|aws_secret_key)\s*[=:]\s*[a-zA-Z0-9/+=]{40}',
     "GENERIC_API_KEY": r'(?i)(?:api[_-]?key|apikey)\s*[=:]\s*[a-zA-Z0-9\-_]{12,}',
@@ -329,7 +347,7 @@ def _check_regex_patterns(text: str) -> list[str]:
     if re.search(VOTER_ID_PATTERN, text):
         detections.append("VOTER_ID")
 
-    if re.search(DRIVING_LICENSE_PATTERN, text):
+    if re.search(DRIVING_LICENSE_PATTERN, text) or re.search(DRIVING_LICENSE_ALT_PATTERN, text):
         detections.append("DRIVING_LICENSE")
 
     if re.search(GST_PATTERN, text):
@@ -348,7 +366,8 @@ def _check_regex_patterns(text: str) -> list[str]:
         detections.append("EMAIL_ADDRESS")
 
     # Phone fallback (when Presidio misses standalone phones)
-    if re.search(PHONE_PATTERN, text):
+    # Accept several phone formats (fallbacks) to catch bare numbers and variants
+    if re.search(PHONE_PATTERN, text) or re.search(PHONE_IN_INDIA_PATTERN, text) or re.search(PHONE_US_PATTERN, text):
         detections.append("PHONE_NUMBER")
 
     # IP addresses
@@ -361,8 +380,9 @@ def _check_regex_patterns(text: str) -> list[str]:
     if _detect_date(text):
         detections.append("DATE")
 
-    # UPI IDs
-    if re.search(UPI_ID_PATTERN, text):
+    # UPI IDs — allow small spacing around '@' (e.g. 'john @oksbi')
+    # UPI with optional spacing but ensure no trailing '@' (avoid malformed double-@ cases)
+    if re.search(r"\b[a-zA-Z0-9._-]+\s?@\s?[a-zA-Z]{2,6}\b(?!@)", text):
         detections.append("UPI_ID")
 
     # JWTs
@@ -371,6 +391,12 @@ def _check_regex_patterns(text: str) -> list[str]:
 
     # Names / addresses / location cues
     if re.search(NAME_CUE_PATTERN, text):
+        detections.append("PERSON")
+    # Honorific-title based names
+    if re.search(NAME_HONORIFIC_PATTERN, text):
+        detections.append("PERSON")
+    # Title-case two-word names fallback
+    if re.search(NAME_SIMPLE_PATTERN, text):
         detections.append("PERSON")
     if re.search(ADDRESS_CUE_PATTERN, text):
         detections.append("LOCATION")
