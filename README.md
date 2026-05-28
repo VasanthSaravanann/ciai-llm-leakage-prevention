@@ -119,6 +119,18 @@ docker compose exec web alembic upgrade head
 
 Or run the API directly as above if pointing at managed Postgres/Redis.
 
+Docker-based testing note:
+
+The container image now includes `curl`, which is required by the Docker Compose healthchecks used in local testing and CI.
+
+For a Docker-first test run, start the API stack and run the test suite from inside the web container:
+
+```bash
+docker compose -f docker-compose.api.yml up -d
+docker compose -f docker-compose.api.yml exec web alembic upgrade head
+docker compose -f docker-compose.api.yml exec web pytest tests/test_detection.py -q
+```
+
 4. Verify encryption (if enabled) and run harness to send real LLM traffic:
 
 ```bash
