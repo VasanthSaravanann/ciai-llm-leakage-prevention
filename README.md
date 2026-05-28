@@ -131,6 +131,13 @@ docker compose -f docker-compose.api.yml exec web alembic upgrade head
 docker compose -f docker-compose.api.yml exec web pytest tests/test_detection.py -q
 ```
 
+You can also run the same flow with the helper script or Makefile target:
+
+```bash
+bash scripts/docker_test.sh
+make docker-test
+```
+
 4. Verify encryption (if enabled) and run harness to send real LLM traffic:
 
 ```bash

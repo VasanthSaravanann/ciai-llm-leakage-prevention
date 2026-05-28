@@ -1,6 +1,6 @@
 PY?=python
 
-.PHONY: help build up migrate smoke down
+.PHONY: help build up migrate smoke docker-test down
 
 help:
 	@echo "Available targets:"
@@ -8,6 +8,7 @@ help:
 	@echo "  make up       - Start stack via docker-compose"
 	@echo "  make migrate  - Run alembic upgrade head inside web"
 	@echo "  make smoke    - Run smoke tests"
+	@echo "  make docker-test - Run API Docker test flow"
 	@echo "  make down     - Stop stack"
 
 build:
@@ -22,6 +23,9 @@ migrate:
 
 smoke:
 	bash scripts/smoke_test.sh
+
+docker-test:
+	bash scripts/docker_test.sh
 
 down:
 	docker compose -f docker-compose.api.yml down -v
