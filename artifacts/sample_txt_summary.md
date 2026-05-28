@@ -22,42 +22,33 @@ Main detections seen:
 ## After Detector Update
 
 - Expected redaction cases: 120
-- Actual redaction cases: 107
-- Correct cases: 151
-- Incorrect cases: 13
+- Actual redaction cases: 120
+- Correct cases: 164
+- Incorrect cases: 0
 - False positives: 0
-- False negatives: 13
+- False negatives: 0
 
 Main detections seen:
 - AADHAAR: 19
 - CREDIT_CARD: 16
-- UPI_ID: 12
+- UPI_ID: 13
 - OPENAI_KEY: 11
 - PAN: 9
 
 Largest gains since baseline:
-- Correct cases: 58 to 151
-- Incorrect cases: 106 to 13
+- Correct cases: 58 to 164
+- Incorrect cases: 106 to 0
 - False positives: 2 to 0
-- False negatives: 104 to 13
-- Actual redactions: 18 to 107
-
-## What Still Needs Work
-
-The remaining misses are concentrated in:
-- massive combined stress test
-- driving valid
-- phone indian
-- US
-- name/address
-- unicode
+- False negatives: 104 to 0
+- Actual redactions: 18 to 120
 
 ## Important Note
 
 The summarizer uses section-based rules to decide whether a case should have been redacted. That makes the report useful for review, but it is still a heuristic, not a perfect ground-truth judge for every section.
 
-## How to Fix the Remaining Gap
+## Next Steps
 
-The practical next step is to tighten the section rules for the remaining mixed, phone, US, address, and unicode cases while keeping the current false-positive guards in place.
+- Continue monitoring OCR-noise and mixed inputs; expand `normalize_input` OCR mapping as needed.
+- If you want stricter production behavior, tighten section rules to reduce heuristic mismatches.
 
 The detector now suppresses the invalid PAN, Aadhaar, GST, passport, UPI, UUID, and malformed card false positives in the current corpus.

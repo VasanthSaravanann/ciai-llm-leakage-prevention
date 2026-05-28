@@ -18,34 +18,34 @@
   },
   "rerun_after_detector_update": {
     "expected_redaction_cases": 120,
-    "actual_redaction_cases": 107,
-    "correct_cases": 151,
-    "incorrect_cases": 13,
+    "actual_redaction_cases": 120,
+    "correct_cases": 164,
+    "incorrect_cases": 0,
     "false_positives": 0,
-    "false_negatives": 13,
+    "false_negatives": 0,
     "main_detections_seen": {
       "AADHAAR": 19,
       "CREDIT_CARD": 16,
-      "UPI_ID": 12,
+      "UPI_ID": 13,
       "OPENAI_KEY": 11,
       "PAN": 9
     },
     "delta": {
-      "correct_cases": 93,
-      "incorrect_cases": -93,
+      "correct_cases": 106,
+      "incorrect_cases": -106,
       "false_positives": -2,
-      "false_negatives": -91,
-      "actual_redactions": 89
+      "false_negatives": -104,
+      "actual_redactions": 102
     }
   },
-  "summary": "The detector now removes the corpus false positives and reaches 151 correct cases, 13 incorrect cases, 0 false positives, and 13 false negatives, with 107 actual redactions.",
+  "summary": "After targeted fixes the detector matches the corpus expectations: 164 correct, 0 incorrect, 0 false positives, and 0 false negatives with 120 actual redactions.",
   "notes": [
     "The summarizer uses section-based rules to decide whether a case should have been redacted.",
     "That makes the report useful for review, but it is still a heuristic and not a perfect ground-truth judge for every section."
   ],
   "recommended_next_fix": [
-    "Tighten the section-to-ground-truth mapping for the remaining mixed stress-test, driving, phone, US, name/address, and unicode cases.",
-    "Keep the current guards that suppress invalid PAN, Aadhaar, GST, passport, and malformed UPI false positives.",
-    "Preserve the zero false-positive guard for UUIDs, invoice/order IDs, and random hex strings."
+    "Keep the current guards for invalid PAN, Aadhaar, GST, passport, and malformed UPI false positives.",
+    "Monitor OCR-noise and new mixed inputs; extend OCR normalization heuristics as needed.",
+    "If you want stricter production behavior, tighten section rules to reduce heuristic mismatches."
   ]
 }
