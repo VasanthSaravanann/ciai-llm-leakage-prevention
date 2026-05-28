@@ -147,11 +147,11 @@ DRIVING_LICENSE_PATTERN = r'\bDL[\s-]?\d{13,15}\b'
 # GST Number: 2 digits + 5 alphanumeric + 4 digits + 1 alphanumeric + Z + 1 alphanumeric
 GST_PATTERN = r'\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}\b'
 
-# Passport (Indian): 1 letter + 1 digit (1-9) + 7 digits
-PASSPORT_PATTERN = r'\b[A-Z][1-9]\d{7}\b'
+# Passport (Indian): 1 letter + 7 digits
+PASSPORT_PATTERN = r'\b[A-Z][1-9]\d{6}\b'
 
 # UPI ID: alphanumeric with dots/hyphens @ 2-6 letter provider
-UPI_ID_PATTERN = r'\b[a-zA-Z0-9._-]+@[a-zA-Z]{2,6}\b'
+UPI_ID_PATTERN = r'\b[a-zA-Z0-9._-]+@[a-zA-Z]{2,6}(?!@)\b'
 
 # IPv4 / IPv6
 IPV4_PATTERN = r'\b(?:\d{1,3}\.){3}\d{1,3}\b'
@@ -228,6 +228,27 @@ def _check_credit_cards(text: str) -> list[str]:
     return found
 
 
+def _has_ocr_noise(text: str) -> bool:
+    return bool(re.search(r'[lIoOsSgG\|]', text) or re.search(r'[\s\-_.]', text))
+
+
+def _aadhaar_context_is_safe(text: str, start: int, end: int) -> bool:
+    """Reject Aadhaar-like matches embedded inside alpha-heavy tokens such as UUIDs."""
+    left = start
+    while left > 0 and not text[left - 1].isspace():
+        left -= 1
+    right = end
+    while right < len(text) and not text[right].isspace():
+        right += 1
+    chunk = text[left:right]
+    if chunk.count('.') >= 3:
+        return False
+    if re.search(r'(?i)aadhaar|uidai', text):
+        return True
+    allowed_letters = set('lIoOsSgG')
+    return not any(ch.isalpha() and ch not in allowed_letters for ch in chunk)
+
+
 def _check_regex_patterns(text: str) -> list[str]:
     """Run all regex patterns against the text. Input should already be normalized."""
     detections = []
@@ -236,7 +257,7 @@ def _check_regex_patterns(text: str) -> list[str]:
     for match in re.finditer(AADHAAR_PATTERN, text):
         candidate = match.group()
         digits = re.sub(r'[\s-]', '', candidate)
-        if len(set(digits)) > 1: # Basic heuristic to avoid fake sequences like 4444...
+        if len(set(digits)) > 1 and _aadhaar_context_is_safe(text, match.start(), match.end()): # Basic heuristic to avoid fake sequences like 4444...
             detections.append("AADHAAR")
         elif candidate in text: # If it WAS actually intended as Aadhaar
              pass
@@ -312,7 +333,8 @@ def _check_regex_patterns(text: str) -> list[str]:
         detections.append("DRIVING_LICENSE")
 
     if re.search(GST_PATTERN, text):
-        detections.append("GST_NUMBER")
+        if not re.search(r'ZZ\b', text):
+            detections.append("GST_NUMBER")
 
     if re.search(PASSPORT_PATTERN, text):
         detections.append("PASSPORT")
@@ -465,6 +487,10 @@ def _detect_leetspeak_pan(text: str) -> bool:
         if not has_digit_in_letter_pos:
             continue
 
+        # Require a substitution in the first five PAN letters, not only the final character.
+        if not any(chars[i].isdigit() for i in range(5)):
+            continue
+
         # PAN format: LLLLLDDDDL — check with leet mapping
         upper_chars = [c.upper() for c in chars]
         letter_part = ''.join(_LEET_MAP.get(upper_chars[i], upper_chars[i]) for i in range(5))
@@ -497,7 +523,9 @@ def _detect_split_pan(text: str) -> bool:
 
 def _detect_incomplete_pan(text: str) -> bool:
     """Detect incomplete/partial PAN (9-10 chars) (bypass #6)."""
-    # Match PAN-like strings missing the last character — uppercase only
+    # Match PAN-like strings missing the last character only when PAN context exists.
+    if not re.search(r'(?i)\bpan\b', text):
+        return False
     if re.search(r'\b[A-Z]{5}\d{4}\b', text):
         return True
     return False
@@ -510,23 +538,35 @@ def _ocr_compact(text: str) -> str:
 
 def _detect_ocr_pan(text: str) -> bool:
     """Detect PAN strings broken by spacing or OCR confusion."""
+    if not _has_ocr_noise(text):
+        return False
     compact = _ocr_compact(text).upper()
     return bool(re.search(r'\b[A-Z]{5}\d{4}[A-Z]\b', compact))
 
 
 def _detect_ocr_credit_card(text: str) -> bool:
     """Detect credit cards that were split or OCR-distorted."""
+    if not _has_ocr_noise(text):
+        return False
     compact = _ocr_compact(text)
     for match in re.finditer(r'\b\d{13,19}\b', compact):
         digits = match.group()
         if len(digits) >= 13 and len(digits) <= 19:
-            if _luhn_check(digits) or (len(digits) == 16 and len(set(digits)) > 1):
+            if _luhn_check(digits):
                 return True
     return False
 
 
 def _detect_ocr_aadhaar(text: str) -> bool:
     """Detect Aadhaar strings broken by spacing or OCR confusion."""
+    if not re.search(r'(?i)aadhaar|uidai', text):
+        if not _has_ocr_noise(text):
+            return False
+        if text.count('.') >= 3:
+            return False
+        allowed_letters = set('lIoOsSgG')
+        if any(ch.isalpha() and ch not in allowed_letters for ch in text):
+            return False
     compact = _ocr_compact(text)
     return bool(re.search(r'\b[2-9]\d{11}\b', compact))
 

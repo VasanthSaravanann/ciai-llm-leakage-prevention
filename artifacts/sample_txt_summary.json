@@ -1,0 +1,51 @@
+{
+  "source_file": "sample_txt_inputs.jsonl",
+  "total_cases": 164,
+  "baseline_run": {
+    "successful_requests": 30,
+    "failed_requests": 134,
+    "expected_redaction_cases": 120,
+    "actual_redaction_cases": 18,
+    "correct_cases": 58,
+    "incorrect_cases": 106,
+    "false_positives": 2,
+    "false_negatives": 104,
+    "main_detections_seen": {
+      "AADHAAR": 8,
+      "CREDIT_CARD": 8,
+      "PAN": 5
+    }
+  },
+  "rerun_after_detector_update": {
+    "expected_redaction_cases": 120,
+    "actual_redaction_cases": 107,
+    "correct_cases": 151,
+    "incorrect_cases": 13,
+    "false_positives": 0,
+    "false_negatives": 13,
+    "main_detections_seen": {
+      "AADHAAR": 19,
+      "CREDIT_CARD": 16,
+      "UPI_ID": 12,
+      "OPENAI_KEY": 11,
+      "PAN": 9
+    },
+    "delta": {
+      "correct_cases": 93,
+      "incorrect_cases": -93,
+      "false_positives": -2,
+      "false_negatives": -91,
+      "actual_redactions": 89
+    }
+  },
+  "summary": "The detector now removes the corpus false positives and reaches 151 correct cases, 13 incorrect cases, 0 false positives, and 13 false negatives, with 107 actual redactions.",
+  "notes": [
+    "The summarizer uses section-based rules to decide whether a case should have been redacted.",
+    "That makes the report useful for review, but it is still a heuristic and not a perfect ground-truth judge for every section."
+  ],
+  "recommended_next_fix": [
+    "Tighten the section-to-ground-truth mapping for the remaining mixed stress-test, driving, phone, US, name/address, and unicode cases.",
+    "Keep the current guards that suppress invalid PAN, Aadhaar, GST, passport, and malformed UPI false positives.",
+    "Preserve the zero false-positive guard for UUIDs, invoice/order IDs, and random hex strings."
+  ]
+}
