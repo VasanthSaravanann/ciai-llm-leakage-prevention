@@ -21,34 +21,35 @@ Main detections seen:
 
 ## After Detector Update
 
-- Expected redaction cases: 120
-- Actual redaction cases: 120
-- Correct cases: 164
-- Incorrect cases: 0
-- False positives: 0
-- False negatives: 0
+- Correct cases: 129
+- Incorrect cases: 35
+- False negatives: 28
+- Actual redactions: 99
 
-Main detections seen:
-- AADHAAR: 19
-- CREDIT_CARD: 16
-- UPI_ID: 13
-- OPENAI_KEY: 11
-- PAN: 9
+Largest gains:
+- IP4: 0/3 to 3/3
+- IP6: 0/2 to 2/2
+- dates: 0/5 to 5/5
+- upiid: 0/4 to 4/4
+- name/address: 0/7 to 6/7
 
-Largest gains since baseline:
-- Correct cases: 58 to 164
-- Incorrect cases: 106 to 0
-- False positives: 2 to 0
-- False negatives: 104 to 0
-- Actual redactions: 18 to 120
+## What Still Needs Work
+
+The remaining misses are concentrated in:
+- OCR noise
+- broken OCR inputs
+- some AWS secret edge cases
+- mixed or line-broken secrets
 
 ## Important Note
 
 The summarizer uses section-based rules to decide whether a case should have been redacted. That makes the report useful for review, but it is still a heuristic, not a perfect ground-truth judge for every section.
 
-## Next Steps
+## How to Fix the Remaining Gap
 
-- Continue monitoring OCR-noise and mixed inputs; expand `normalize_input` OCR mapping as needed.
-- If you want stricter production behavior, tighten section rules to reduce heuristic mismatches.
+The practical fix is to make the section rules more conservative for ambiguous sections and add targeted heuristics for the failure shapes the corpus still shows:
+- treat OCR/noisy sections as redact-leaning when they contain tokenized IDs or digit-letter patterns
+- detect line-broken API keys and secrets before Presidio runs
+- keep a false-positive guard for UUIDs, order IDs, and random hex strings
 
-The detector now suppresses the invalid PAN, Aadhaar, GST, passport, UPI, UUID, and malformed card false positives in the current corpus.
+The detector already improved after adding IPv4, IPv6, dates, UPI IDs, JWTs, and basic name/address cues in `src/detection/detect.py`.

@@ -13,8 +13,12 @@ class RateLimiter:
     """Simple Redis-backed fixed-window rate limiter per API key."""
 
     def __init__(self, redis_url: str | None = None):
-        self.redis_url = redis_url or os.getenv('REDIS_URL', 'redis://localhost:6379/0')
-        self.r = redis.from_url(self.redis_url) if self.redis_url else None
+        candidate = redis_url if redis_url is not None else os.getenv("REDIS_URL", "")
+        self.redis_url = candidate.strip() if isinstance(candidate, str) else ""
+        if not self.redis_url or self.redis_url.lower() in {"none", "false"}:
+            self.r = None
+        else:
+            self.r = redis.from_url(self.redis_url)
 
     def allow(self, key: str, quota: Optional[int] = None, window: Optional[int] = None) -> bool:
         if not self.r:

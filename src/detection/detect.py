@@ -42,6 +42,23 @@ _OCR_CONFUSION_MAP = str.maketrans({
     'G': '6',
 })
 
+_LEET_MAP = str.maketrans({
+    '@': 'a',
+    '4': 'a',
+    '3': 'e',
+    '1': 'i',
+    '0': 'o',
+    '5': 's',
+    '7': 't',
+    '$': 's',
+})
+
+
+def _normalize_leetspeak_token(token: str) -> str:
+    if not any(ch.isalpha() for ch in token):
+        return token
+    return token.translate(_LEET_MAP)
+
 
 def normalize_input(text: str) -> str:
     """
@@ -107,6 +124,10 @@ def normalize_input(text: str) -> str:
     })
     text = text.translate(homoglyph_map)
 
+    # Normalize common leetspeak in labeled PII words (e.g. A@dh4ar → Aadhaar)
+    # without touching digit-only payloads like Aadhaar numbers.
+    text = re.sub(r'\S+', lambda match: _normalize_leetspeak_token(match.group()), text)
+
     # Normalize common OCR confusions inside digit-like runs so broken IDs can still match.
     text = re.sub(
         r'(?<!\w)[\d\s\-_.lIoOsSgGB|]{6,}(?!\w)',
@@ -123,11 +144,10 @@ def normalize_input(text: str) -> str:
 
 # Aadhaar: 12 digits, commonly formatted as XXXX-XXXX-XXXX, XXXX XXXX XXXX, or XXXXXXXXXXXX
 # First digit is 2-9 (valid Aadhaar range)
-# Also matches when preceded by a single letter (homoglyph normalization artifact)
-# Aadhaar: 12 digits, first digit is 2-9 (valid Aadhaar range)
-# Format: 4-4-4 digits with optional spaces/dashes
-AADHAAR_PATTERN = r'\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b'
-AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-z][2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b'
+# Format: 4-4-4 digits with optional spaces, dots, or dashes
+AADHAAR_PATTERN = r'\b[2-9]\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b'
+# Also matches when the leading digit is replaced by a homoglyph/zero-like prefix.
+AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-z0][2-9]\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b'
 
 # PAN: 5 uppercase letters + 4 digits + 1 uppercase letter
 # e.g., ABCDE1234F

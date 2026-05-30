@@ -32,6 +32,7 @@ from sqlalchemy import desc
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from starlette.status import HTTP_403_FORBIDDEN
@@ -60,6 +61,16 @@ app = FastAPI(
     description="Detect and prevent sensitive data leakage to LLMs",
     version=settings.API_VERSION
 )
+
+cors_origins = [origin.strip() for origin in getattr(settings, "CORS_ORIGINS", "").split(",") if origin.strip()]
+if cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Rate limiter instance
 rate_limiter = RateLimiter(getattr(settings, 'REDIS_URL', None))

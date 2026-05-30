@@ -1,8 +1,13 @@
 text,label,detections,block,latency
-My PAN is ABCDE1234F,positive,['PAN'],True,0.4397609233856201
-Card: 4111111111111111,positive,['CREDIT_CARD'],True,0.5747179985046387
-api_key = sk-abcdefghijklmnopqrstuvwxyz1234567890ABCD,positive,"['GENERIC_API_KEY', 'OPENAI_KEY']",True,0.561276912689209
-"Hello, how are you today?",negative,[],False,0.27471494674682617
-This is a sample sentence with no secrets.,negative,[],False,0.28505492210388184
-UGFyZW50IGtleTogc2stYWJjMTIz,adversarial,[],False,0.5590779781341553
-P A N : A B C D E 1 2 3 4 F,adversarial,[],False,0.30016398429870605
+My PAN is ABCDE1234F,positive,['PAN'],True,0.28998398780822754
+Card: 4111111111111111,positive,['CREDIT_CARD'],True,0.5651750564575195
+api_key = sk-abcdefghijklmnopqrstuvwxyz1234567890ABCD,positive,"['GENERIC_API_KEY', 'OPENAI_KEY']",True,0.578808069229126
+"Hello, how are you today?",negative,[],False,0.2803609371185303
+This is a sample sentence with no secrets.,negative,[],False,0.38572192192077637
+UGFyZW50IGtleTogc2stYWJjMTIz,adversarial,[],False,0.56821608543396
+P A N : A B C D E 1 2 3 4 F,adversarial,[],False,0.2848320007324219
+
+label,samples,tp,fp,fn,precision,recall
+positive,3,3,0,0,1.0,1.0
+negative,2,0,0,0,0.0,0.0
+adversarial,2,0,0,2,0.0,0.0

@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     # Database settings
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./data/ciai_audit.db")
 
+    # Website integration / CORS
+    CORS_ORIGINS: str = os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:4173,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:3001,http://127.0.0.1:3002,http://127.0.0.1:4173,http://127.0.0.1:5173",
+    )
+
     # SMTP settings for alerts
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
@@ -29,8 +35,8 @@ class Settings(BaseSettings):
     # Detection settings
     PRESIDIO_MODEL: str = os.getenv("PRESIDIO_MODEL", "en_core_web_sm")
     # Redis / Celery
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
+    REDIS_URL: str = os.getenv("REDIS_URL", "")
+    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "")
 
     # Auth (JWT)
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "dev-jwt-secret")

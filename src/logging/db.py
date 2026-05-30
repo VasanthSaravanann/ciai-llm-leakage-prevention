@@ -44,6 +44,22 @@ class Base(DeclarativeBase):
     pass
 
 
+async def _ensure_sqlite_schema():
+    """Ensure SQLite schema includes newer columns when running against an existing DB file."""
+    if not DATABASE_URL.startswith("sqlite"):
+        return
+
+    async with engine.begin() as conn:
+        res = await conn.execute(text("PRAGMA table_info('audit_logs')"))
+        rows = res.fetchall()
+        if not rows:
+            return
+
+        cols = [row[1] for row in rows]
+        if "tenant_id" not in cols:
+            await conn.execute(text("ALTER TABLE audit_logs ADD COLUMN tenant_id VARCHAR(255)"))
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 
@@ -100,6 +116,8 @@ async def create_audit_log(
     Returns the new entry's ID.
     """
     import json
+
+    await _ensure_sqlite_schema()
 
     async with AsyncSessionLocal() as session:
         entry = AuditLog(

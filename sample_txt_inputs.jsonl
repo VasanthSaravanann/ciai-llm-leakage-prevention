@@ -1,0 +1,164 @@
+{"id": "case_0001", "section": "valid", "text": "2345 6789 1234"}
+{"id": "case_0002", "section": "valid", "text": "234567891234"}
+{"id": "case_0003", "section": "valid", "text": "2345-6789-1234"}
+{"id": "case_0004", "section": "valid", "text": "UIDAI: 2345 6789 1234"}
+{"id": "case_0005", "section": "valid", "text": "aadhaar=234567891234"}
+{"id": "case_0006", "section": "invalid", "text": "1234 5678 901"}
+{"id": "case_0007", "section": "invalid", "text": "1234567890123"}
+{"id": "case_0008", "section": "invalid", "text": "ABCD56789012"}
+{"id": "case_0009", "section": "invalid", "text": "0000 0000 0000"}
+{"id": "case_0010", "section": "invalid", "text": "9999-9999-999"}
+{"id": "case_0011", "section": "ocr noise", "text": "2345 678g 1234"}
+{"id": "case_0012", "section": "ocr noise", "text": "234S 6789 l234"}
+{"id": "case_0013", "section": "valid", "text": "ABCDE1234F"}
+{"id": "case_0014", "section": "valid", "text": "AAAAA9999A"}
+{"id": "case_0015", "section": "valid", "text": "pan: BNZAA2318J"}
+{"id": "case_0016", "section": "invalid", "text": "ABCD1234F"}
+{"id": "case_0017", "section": "invalid", "text": "ABCDE12345"}
+{"id": "case_0018", "section": "invalid", "text": "1234EABCDE"}
+{"id": "case_0019", "section": "invalid", "text": "ABCDE1234"}
+{"id": "case_0020", "section": "visa card", "text": "4111111111111111"}
+{"id": "case_0021", "section": "visa card", "text": "4012 8888 8888 1881"}
+{"id": "case_0022", "section": "master", "text": "5555555555554444"}
+{"id": "case_0023", "section": "master", "text": "5105-1051-0510-5100"}
+{"id": "case_0024", "section": "amex", "text": "378282246310005"}
+{"id": "case_0025", "section": "amex", "text": "371449635398431"}
+{"id": "case_0026", "section": "discover", "text": "6011111111111117"}
+{"id": "case_0027", "section": "invalid luhn", "text": "4111111111111112"}
+{"id": "case_0028", "section": "invalid luhn", "text": "5555555555554440"}
+{"id": "case_0029", "section": "invalid luhn", "text": "1234567812345678"}
+{"id": "case_0030", "section": "valid", "text": "cc=4111-1111-1111-1111"}
+{"id": "case_0031", "section": "valid", "text": "Card Number: 5555555555554444 Exp: 12/29 CVV: 123"}
+{"id": "case_0032", "section": "gst", "text": "27AAPFU0939F1ZV"}
+{"id": "case_0033", "section": "gst", "text": "29ABCDE1234F2Z5"}
+{"id": "case_0034", "section": "invalid", "text": "27AAPFU0939F1ZZ"}
+{"id": "case_0035", "section": "invalid", "text": "ABCDE1234F1ZV"}
+{"id": "case_0036", "section": "invalid", "text": "27A123456789ZV"}
+{"id": "case_0037", "section": "indian password", "text": "K1234567"}
+{"id": "case_0038", "section": "indian password", "text": "M9876543"}
+{"id": "case_0039", "section": "indian password", "text": "passport: P1234567"}
+{"id": "case_0040", "section": "invalid", "text": "12345678"}
+{"id": "case_0041", "section": "invalid", "text": "AA123456"}
+{"id": "case_0042", "section": "invalid", "text": "P12345678"}
+{"id": "case_0043", "section": "driving valid", "text": "TN0120110012345"}
+{"id": "case_0044", "section": "driving valid", "text": "DL-0420110149646"}
+{"id": "case_0045", "section": "driving valid", "text": "KA0520120034567"}
+{"id": "case_0046", "section": "driving valid", "text": "MH1420110012345"}
+{"id": "case_0047", "section": "invalid", "text": "TN01201100123"}
+{"id": "case_0048", "section": "invalid", "text": "12345678901234"}
+{"id": "case_0049", "section": "invalid", "text": "DL042011"}
+{"id": "case_0050", "section": "voterid", "text": "ABC1234567"}
+{"id": "case_0051", "section": "voterid", "text": "XYZ7654321"}
+{"id": "case_0052", "section": "invalidAB1234567", "text": "ABCDE12345"}
+{"id": "case_0053", "section": "invalidAB1234567", "text": "1234567890"}
+{"id": "case_0054", "section": "upiid", "text": "john@oksbi"}
+{"id": "case_0055", "section": "upiid", "text": "alice123@paytm"}
+{"id": "case_0056", "section": "upiid", "text": "9876543210@ybl"}
+{"id": "case_0057", "section": "upiid", "text": "user.name@ibl"}
+{"id": "case_0058", "section": "invalid", "text": "john@"}
+{"id": "case_0059", "section": "invalid", "text": "@oksbi"}
+{"id": "case_0060", "section": "invalid", "text": "john#oksbi"}
+{"id": "case_0061", "section": "invalid", "text": "john@bank@"}
+{"id": "case_0062", "section": "US SSN", "text": "123-45-6789"}
+{"id": "case_0063", "section": "US SSN", "text": "987-65-4321"}
+{"id": "case_0064", "section": "invalid", "text": "12-345-6789"}
+{"id": "case_0065", "section": "invalid", "text": "123456789"}
+{"id": "case_0066", "section": "invalid", "text": "AAA-GG-SSSS"}
+{"id": "case_0067", "section": "valid email", "text": "test@example.com"}
+{"id": "case_0068", "section": "valid email", "text": "john.doe+demo@gmail.com"}
+{"id": "case_0069", "section": "valid email", "text": "user_name123@company.co.in"}
+{"id": "case_0070", "section": "valid email", "text": "admin@mail-server.io"}
+{"id": "case_0071", "section": "invalid", "text": "test@"}
+{"id": "case_0072", "section": "invalid", "text": "@test.com"}
+{"id": "case_0073", "section": "invalid", "text": "test.com"}
+{"id": "case_0074", "section": "invalid", "text": "abc@@gmail.com"}
+{"id": "case_0075", "section": "phone indian", "text": "9876543210"}
+{"id": "case_0076", "section": "phone indian", "text": "+91 9876543210"}
+{"id": "case_0077", "section": "phone indian", "text": "+91-98765-43210"}
+{"id": "case_0078", "section": "phone indian", "text": "0919876543210"}
+{"id": "case_0079", "section": "US", "text": "(555) 123-4567"}
+{"id": "case_0080", "section": "US", "text": "+1-202-555-0198"}
+{"id": "case_0081", "section": "US", "text": "2025550188"}
+{"id": "case_0082", "section": "invalid", "text": "12345"}
+{"id": "case_0083", "section": "invalid", "text": "999999999999999999"}
+{"id": "case_0084", "section": "invalid", "text": "phone: abcdefghij"}
+{"id": "case_0085", "section": "api", "text": "sk-proj-abcdefghijklmnopqrstuvwxyz1234567890"}
+{"id": "case_0086", "section": "api", "text": "sk-test-1234567890abcdefghijklmnop"}
+{"id": "case_0087", "section": "api", "text": "sk-ant-api03-abcdefghijklmnopqrstuvwxyz"}
+{"id": "case_0088", "section": "aws access", "text": "AKIAIOSFODNN7EXAMPLE"}
+{"id": "case_0089", "section": "aws access", "text": "AKIA1234567890ABCD"}
+{"id": "case_0090", "section": "aws secret", "text": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}
+{"id": "case_0091", "section": "bearer tokens", "text": "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"}
+{"id": "case_0092", "section": "bearer tokens", "text": "Bearer sk_live_abc123xyz456"}
+{"id": "case_0093", "section": "generic apis", "text": "api_key=abcd1234efgh5678ijkl"}
+{"id": "case_0094", "section": "generic apis", "text": "SECRET_KEY=\"super_secret_key\""}
+{"id": "case_0095", "section": "generic apis", "text": "client_secret: 1234567890abcdef"}
+{"id": "case_0096", "section": "generic apis", "text": "token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9"}
+{"id": "case_0097", "section": "JWT's", "text": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiam9obiJ9.signature"}
+{"id": "case_0098", "section": "IP4", "text": "192.168.1.1"}
+{"id": "case_0099", "section": "IP4", "text": "8.8.8.8"}
+{"id": "case_0100", "section": "IP4", "text": "255.255.255.255"}
+{"id": "case_0101", "section": "IP6", "text": "2001:0db8:85a3:0000:0000:8a2e:0370:7334"}
+{"id": "case_0102", "section": "IP6", "text": "fe80::1"}
+{"id": "case_0103", "section": "invalid", "text": "999.999.999.999"}
+{"id": "case_0104", "section": "invalid", "text": "abcd"}
+{"id": "case_0105", "section": "dates", "text": "2025-01-31"}
+{"id": "case_0106", "section": "dates", "text": "31/12/2024"}
+{"id": "case_0107", "section": "dates", "text": "12-25-2023"}
+{"id": "case_0108", "section": "dates", "text": "Jan 5, 2026"}
+{"id": "case_0109", "section": "dates", "text": "DOB: 14/08/1997"}
+{"id": "case_0110", "section": "name/address", "text": "My name is Rahul Sharma and I live in Chennai."}
+{"id": "case_0111", "section": "name/address", "text": "Alice Johnson visited New York last week."}
+{"id": "case_0112", "section": "name/address", "text": "Send the parcel to:"}
+{"id": "case_0113", "section": "name/address", "text": "221B Baker Street, London"}
+{"id": "case_0114", "section": "name/address", "text": "Dr. Priya Menon"}
+{"id": "case_0115", "section": "name/address", "text": "Flat 5A, Brigade Residency"}
+{"id": "case_0116", "section": "name/address", "text": "MG Road, Bengaluru 560001"}
+{"id": "case_0117", "section": "mixed info", "text": "Customer Name: Rahul Sharma"}
+{"id": "case_0118", "section": "mixed info", "text": "PAN: ABCDE1234F"}
+{"id": "case_0119", "section": "mixed info", "text": "Aadhaar: 2345 6789 1234"}
+{"id": "case_0120", "section": "mixed info", "text": "GSTIN: 27AAPFU0939F1ZV"}
+{"id": "case_0121", "section": "mixed info", "text": "Phone: +91 9876543210"}
+{"id": "case_0122", "section": "mixed info", "text": "Email: rahul.sharma@gmail.com"}
+{"id": "case_0123", "section": "mixed info", "text": "UPI: rahul@oksbi"}
+{"id": "case_0124", "section": "mixed info", "text": "Card Used: 4111 1111 1111 1111"}
+{"id": "case_0125", "section": "mixed info", "text": "Passport: K1234567"}
+{"id": "case_0126", "section": "mixed info", "text": "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"}
+{"id": "case_0127", "section": "mixed info", "text": "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE"}
+{"id": "case_0128", "section": "mixed info", "text": "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"}
+{"id": "case_0129", "section": "log", "text": "INFO User login success email=john@example.com ip=192.168.1.5"}
+{"id": "case_0130", "section": "log", "text": "DEBUG token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"}
+{"id": "case_0131", "section": "log", "text": "WARN credit_card=5555-5555-5555-4444"}
+{"id": "case_0132", "section": "log", "text": "ERROR aws_key=AKIAIOSFODNN7EXAMPLE"}
+{"id": "case_0133", "section": "Json", "text": "{\n  \"name\": \"Rahul Sharma\",\n  \"email\": \"rahul@gmail.com\",\n  \"phone\": \"+91 9876543210\",\n  \"aadhaar\": \"234567891234\",\n  \"pan\": \"ABCDE1234F\",\n  \"credit_card\": \"4111111111111111\",\n  \"upi\": \"rahul@ybl\",\n  \"api_key\": \"sk-test-1234567890abcdefghijklmnop\"\n}"}
+{"id": "case_0134", "section": "url", "text": "https://example.com/login?token=abc123secret"}
+{"id": "case_0135", "section": "url", "text": "https://api.app.com?api_key=sk-test-abcdefgh123456"}
+{"id": "case_0136", "section": "url", "text": "https://bank.com?aadhaar=234567891234"}
+{"id": "case_0137", "section": "unicode", "text": "4111\u20031111\u20031111\u20031111"}
+{"id": "case_0138", "section": "unicode", "text": "ABCDE\uff11\uff12\uff13\uff14F"}
+{"id": "case_0139", "section": "unicode", "text": "john @oksbi"}
+{"id": "case_0140", "section": "massive combined stress test", "text": "Rahul Sharma"}
+{"id": "case_0141", "section": "massive combined stress test", "text": "rahul@gmail.com"}
+{"id": "case_0142", "section": "massive combined stress test", "text": "9876543210"}
+{"id": "case_0143", "section": "massive combined stress test", "text": "ABCDE1234F"}
+{"id": "case_0144", "section": "massive combined stress test", "text": "2345 6789 1234"}
+{"id": "case_0145", "section": "massive combined stress test", "text": "4111111111111111"}
+{"id": "case_0146", "section": "massive combined stress test", "text": "27AAPFU0939F1ZV"}
+{"id": "case_0147", "section": "massive combined stress test", "text": "K1234567"}
+{"id": "case_0148", "section": "massive combined stress test", "text": "TN0120110012345"}
+{"id": "case_0149", "section": "massive combined stress test", "text": "ABC1234567"}
+{"id": "case_0150", "section": "massive combined stress test", "text": "rahul@ybl"}
+{"id": "case_0151", "section": "massive combined stress test", "text": "123-45-6789"}
+{"id": "case_0152", "section": "massive combined stress test", "text": "192.168.0.1"}
+{"id": "case_0153", "section": "massive combined stress test", "text": "AKIAIOSFODNN7EXAMPLE"}
+{"id": "case_0154", "section": "massive combined stress test", "text": "Authorization: Bearer xyz123abc456"}
+{"id": "case_0155", "section": "false positive", "text": "Order ID: 123456789012"}
+{"id": "case_0156", "section": "false positive", "text": "Random Hex: abcdef1234567890"}
+{"id": "case_0157", "section": "false positive", "text": "Version: 2025.10.1234"}
+{"id": "case_0158", "section": "false positive", "text": "UUID: 550e8400-e29b-41d4-a716-446655440000"}
+{"id": "case_0159", "section": "false positive", "text": "Invoice: INV-2025-000123"}
+{"id": "case_0160", "section": "broken ocr", "text": "A B C D E 1 2 3 4 F"}
+{"id": "case_0161", "section": "broken ocr", "text": "2 3 4 5 6 7 8 9 1 2 3 4"}
+{"id": "case_0162", "section": "broken ocr", "text": "4lll-llll-llll-llll"}
+{"id": "case_0163", "section": "multi line", "text": "-----BEGIN API CONFIG-----\napi_key =\nsk-test-abcdefghijklmnop\n\nsecret =\nsupersecretvalue123\n-----END API CONFIG-----"}
+{"id": "case_0164", "section": "sql dump", "text": "INSERT INTO users VALUES (\n  'Rahul Sharma',\n  'rahul@gmail.com',\n  '9876543210',\n  'ABCDE1234F',\n  '4111111111111111'\n);"}

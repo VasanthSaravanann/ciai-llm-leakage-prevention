@@ -1,0 +1,147 @@
+1. Add SSO + RBAC (not just API keys)
+Today you rely on X-API-KEY and basic JWT, with no SSO/RBAC. Enterprises expect:
+
+Integration with at least one SSO (e.g., OIDC/OAuth2 with Azure AD, Okta, or Auth0).
+
+Role‑based access:
+
+e.g., read_apikey, write_apikey, manage_policy, view_audit.
+
+Concrete step:
+
+Add an OIDC‑based auth middleware plugged into your FastAPI app, mapping user groups to roles.
+
+Enforce RBAC on all admin‑like endpoints (/dashboard, /metrics, policy config if exposed later).
+
+This is the first box an enterprise security team will check for “zero‑trust‑style” access.
+
+2. Harden the admin surface and remove unauthenticated routes
+Right now /health, /metrics, and /dashboard are unauthenticated, which is a hard no‑no for production.
+
+Concrete step:
+
+Wrap these behind the same auth layer used for API calls.
+
+At minimum, require a separate admin API key or admin role for /dashboard and /metrics.
+
+Log every admin access and flag changes (e.g., “policy config changed by user X”).
+
+That gets you closer to “enterprise‑style admin control” used in AI gateways and API gateways.
+
+3. Implement tenant isolation (org/project partitioning)
+You have no true tenant isolation; policies, logs, and keys are not partitioned. For an enterprise AI gateway, isolation is central.
+
+Concrete step:
+
+Add a tenant_id or org_id field to all core entities: logs, policies, API keys.
+
+Enforce that calls use a tenant context (e.g., in X-Tenant-ID or inferred from JWT claims).
+
+Ensure queries are always scoped by tenant (no “show me all logs” as a single‑tenant query).
+
+This aligns with how multi‑tenant generative AI and API gateway platforms are designed on AWS and similar clouds.
+
+4. Go fail‑closed for rate‑limiting and detection
+You currently fail‑open on Redis errors in the rate limiter, and there is no clear “do‑not‑bypass” mode for detection.
+
+Concrete step:
+
+Change the rate‑limiter to fail‑closed (block or return 500) when Redis is unreachable, not fail‑open.
+
+Add a config like GATEWAY_MODE=fail_closed where:
+
+if detection is down, the gateway rejects the request or serves a safe default.
+
+if provider is down, reject with a meaningful error instead of silently dropping the request.
+
+This is how serious LLM‑security gateways handle “fail‑open vs fail‑closed” and how enterprises evaluate resilience vs security.
+
+5. Build a benchmarked detection suite with metrics
+Right now there is no quantified quality: no P/R, no false‑positive/false‑negative numbers, no test suite.
+
+Concrete step:
+
+Build a small PyTest‑based detection test suite with:
+
+Positive prompts (all PII/secrets types you support).
+
+Negative prompts (clean, but similar in structure).
+
+Adversarial prompts (obfuscated, mixed script, zero‑width, base64‑like).
+
+Measure: recall per class, false‑positive rate, and latency per detection step.
+
+Output a per‑class detection report (e.g., detect_benchmark.html or a CSV).
+
+This is how enterprise AI vendors justify “this is production‑grade, not a toy.”
+
+6. Add output‑side guardrails and simple moderation
+Today you only inspect inputs; you ignore the LLM response and downstream tool‑use patterns.
+
+Concrete step:
+
+Add a response‑moderation hook that runs on the model output before sending it back:
+
+Optional PII/secrets detection in responses.
+
+Optional “block if response contains secrets” or “block if it’s an instruction leak attempt.”
+
+Start simple:
+
+non‑streaming only,
+
+a separate “moderation” pipeline that can be toggled per tenant.
+
+This matches the “filter inputs and outputs” best practice in LLM‑security guidance and AI gateways.
+
+7. Lock down secrets and key management + rotation
+Right now keys are env‑var‑based, with only optional KMS/Fernet; no rotation or policy‑based rules.
+
+Concrete step:
+
+Require use of a secrets manager (e.g., Vault or cloud KMS) for provider keys and DB credentials, not just env‑vars.
+
+Implement a simple key‑rotation policy:
+
+e.g., new keys per‑tenant, short‑lived API keys, or at least a documented rotation procedure.
+
+Store and rotate the Fernet key‑material in a more secure place (not just locally in the pod).
+
+This is how serious LLM gateways comply with “enforce access controls and rotate secrets” best practices.
+
+8. Add basic SLO‑style observability and alerting
+You have /metrics and basic logging, but no SLO‑style setup.
+
+Concrete step:
+
+Define a minimal SLO‑set:
+
+P95 gateway latency,
+
+99.9% availability for the main /completions route,
+
+max error rate for detection failures.
+
+Export these as Prometheus‑style metrics from /metrics.
+
+Add simple alerts (e.g., via Slack or Email) when detection latency spikes or error rate jumps.
+
+This is exactly how enterprise teams evaluate LLM‑gateway readiness for scale and reliability.
+
+9. Package a “hardened” deployment pattern (optional but powerful)
+Even if you don’t go full Terraform/Helm, you can make life easier for enterprises.
+
+Concrete step:
+
+Add a hardened‑mode section in your deployment docs:
+
+recommended VPC topology,
+
+HTTPS‑only with TLS‑1.2+,
+
+separate DB and Redis security groups,
+
+example IAM‑style access control between platform and security teams.
+
+This directly addresses the “deployment isolation and multi‑tenant patterns” concerns in enterprise AI gateways.
+
