@@ -92,6 +92,32 @@ Covers the 45-point bypass journey.
 python tests/security_audit.py
 ```
 
+### 3. Production Test Suite
+Runs the production-grade validation flow in one command:
+- unit tests
+- benchmark regression
+- security audit
+- live deployment smoke checks
+
+```bash
+bash scripts/production_test_suite.sh
+```
+
+Environment variables:
+- `PRODUCTION_URL` - defaults to `https://ldot-ssr-2.vercel.app`
+- `API_URL` and `API_KEY` - optional; if set, the suite also runs the API smoke script
+- `PYTHON_BIN` - override the Python executable if you are not using `.venv`
+
+Recommended local install before running the full suite:
+```bash
+python -m pip install -r requirements.txt -r requirements-dev.txt
+```
+
+Convenience target:
+```bash
+make prod-test
+```
+
 ## 📈 Current Coverage Status
 - **Unit Tests:** 34/34 Passed ✅
 - **Security Audit:** 45/45 Detected (Final Hardened Status) ✅

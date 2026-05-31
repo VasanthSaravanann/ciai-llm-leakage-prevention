@@ -230,3 +230,5 @@ print("\n\033[1mFAILED TESTS (BYPASSES THAT WORKED):\033[0m")
 for r in results:
     if not r["success"]:
         print(f"  ✗ {r['name']}")
+
+sys.exit(0 if failed == 0 else 1)
