@@ -60,6 +60,11 @@ class TestPANDetection:
         assert result["block"] is True
         assert result["severity"] == "high"
 
+    def test_pan_ocr_mixed_case_suffix(self):
+        result = detect_sensitive("PAN: ABCDE1234i for vendor onboarding.")
+        assert "PAN" in result["detections"]
+        assert result["block"] is True
+
     def test_pan_lowercase_invalid(self):
         result = detect_sensitive("My pan is abcde1234f")
         assert "PAN" not in result["detections"]
@@ -90,6 +95,11 @@ class TestCreditCardDetection:
     def test_card_with_spaces(self):
         result = detect_sensitive("Card: 4111 1111 1111 1111")
         assert "CREDIT_CARD" in result["detections"]
+
+    def test_card_context_non_luhn(self):
+        result = detect_sensitive("My credit carrd is 2345 6789 1012 6372 please be discreet.")
+        assert "CREDIT_CARD" in result["detections"]
+        assert "AADHAAR" not in result["detections"]
 
 
 # ---------------------------------------------------------------------------

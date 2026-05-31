@@ -32,3 +32,13 @@ Thumbs.db
 .coverage
 htmlcov/
 .env
+.vercel
+
+# Local install/build artifacts
+node_modules/
+**/node_modules/
+.vite/
+dist/
+*.tar
+*.tar.gz
+*.tgz

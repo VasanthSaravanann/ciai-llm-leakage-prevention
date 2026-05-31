@@ -1,7 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
-  "installCommand": "cd Ldot && bun install",
-  "buildCommand": "cd Ldot && bun run build",
-  "outputDirectory": "Ldot/dist/client"
+  "installCommand": "cd Ldot && npm ci",
+  "buildCommand": "cd Ldot && npm run build",
+  "outputDirectory": "Ldot/dist/client",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/ssr" }
+  ]
 }

@@ -279,6 +279,11 @@ def _aadhaar_context_is_safe(text: str, start: int, end: int) -> bool:
     while right < len(text) and not text[right].isspace():
         right += 1
     chunk = text[left:right]
+    if re.match(r'[\s.-]*\d', text[end:]) and not re.search(r'(?i)aadhaar|uidai', text):
+        return False
+    digit_count = len(re.sub(r'\D', '', chunk))
+    if digit_count > 12 and not re.search(r'(?i)aadhaar|uidai', text):
+        return False
     if chunk.count('.') >= 3:
         return False
     if re.search(r'(?i)aadhaar|uidai', text):
@@ -586,6 +591,21 @@ def _detect_ocr_pan(text: str) -> bool:
     """Detect PAN strings broken by spacing or OCR confusion."""
     if not _has_ocr_noise(text):
         return False
+
+    # First, check individual tokens that look like PAN with a mixed-case or
+    # OCR-corrupted final character, e.g. "ABCDE1234i".
+    for raw_token in re.findall(r'\S+', text):
+        compact_token = re.sub(r'[\s\-_.:]+', '', raw_token).translate(_OCR_CONFUSION_MAP).upper()
+        if not re.fullmatch(r'[A-Z]{5}\d{4}[A-Z]', compact_token):
+            continue
+
+        # Keep the strict lowercase PAN test intact: plain lowercase words like
+        # "abcde1234f" should not become a PAN just because we uppercased them.
+        if raw_token == raw_token.lower() and not re.search(r'[lIoOsSgG\|]', raw_token):
+            continue
+
+        return True
+
     compact = _ocr_compact(text).upper()
     return bool(re.search(r'\b[A-Z]{5}\d{4}[A-Z]\b', compact))
 
@@ -595,10 +615,13 @@ def _detect_ocr_credit_card(text: str) -> bool:
     if not _has_ocr_noise(text):
         return False
     compact = _ocr_compact(text)
-    for match in re.finditer(r'\b\d{13,19}\b', compact):
+    has_card_context = bool(re.search(r'(?i)\b(?:credit|debit|card|visa|mastercard|amex)\b', text))
+    for match in re.finditer(r'\d{13,19}', compact):
         digits = match.group()
         if len(digits) >= 13 and len(digits) <= 19:
             if _luhn_check(digits):
+                return True
+            if has_card_context and re.search(r'\d[\s\-_.]+\d', text):
                 return True
     return False
 
