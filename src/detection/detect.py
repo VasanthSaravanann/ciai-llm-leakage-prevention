@@ -147,11 +147,11 @@ def normalize_input(text: str) -> str:
 # Format: 4-4-4 digits with optional spaces, dots, or dashes
 AADHAAR_PATTERN = r'\b[2-9]\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b'
 # Also matches when the leading digit is replaced by a homoglyph/zero-like prefix.
-AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-z0][2-9]\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b'
+AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-zA-Z0][2-9]\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b'
 
-# PAN: 5 uppercase letters + 4 digits + 1 uppercase letter
-# e.g., ABCDE1234F
-PAN_PATTERN = r'\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b'
+# PAN: 5 letters + 4 digits + 1 letter (case-insensitive)
+# e.g., ABCDE1234F or abcde1234f
+PAN_PATTERN = r'\b[a-zA-Z]{5}[0-9]{4}[a-zA-Z]{1}\b'
 
 # Credit card: 13-19 digits, possibly with spaces or dashes
 CREDIT_CARD_PATTERN = r'\b(?:\d[\s-]*?){13,19}\b'
@@ -279,14 +279,14 @@ def _aadhaar_context_is_safe(text: str, start: int, end: int) -> bool:
     while right < len(text) and not text[right].isspace():
         right += 1
     chunk = text[left:right]
-    if re.match(r'[\s.-]*\d', text[end:]) and not re.search(r'(?i)aadhaar|uidai', text):
+    if re.match(r'[\s.-]*\d', text[end:]) and not re.search(r'(?i)aadhaar|aadhar|uidai', text):
         return False
     digit_count = len(re.sub(r'\D', '', chunk))
-    if digit_count > 12 and not re.search(r'(?i)aadhaar|uidai', text):
+    if digit_count > 12 and not re.search(r'(?i)aadhaar|aadhar|uidai', text):
         return False
     if chunk.count('.') >= 3:
         return False
-    if re.search(r'(?i)aadhaar|uidai', text):
+    if re.search(r'(?i)aadhaar|aadhar|uidai', text):
         return True
     allowed_letters = set('lIoOsSgG')
     return not any(ch.isalpha() and ch not in allowed_letters for ch in chunk)
@@ -486,8 +486,8 @@ def _detect_spaced_aadhaar(text: str) -> bool:
 
 def _detect_embedded_aadhaar(text: str) -> bool:
     """Detect Aadhaar digits embedded in a larger number (bypass #7)."""
-    # Look for "aadhaar" keyword followed by a long digit sequence
-    if re.search(r'(?i)aadhaar', text):
+    # Look for "aadhaar" or "aadhar" keyword followed by a long digit sequence
+    if re.search(r'(?i)aadhaar|aadhar', text):
         # Extract all digit substringes of 12+ digits
         for match in re.finditer(r'\d{12,}', text):
             digits = match.group()
@@ -505,7 +505,7 @@ def _detect_reversed_pan(text: str) -> bool:
     words = text.split()
     for word in words:
         reversed_word = word[::-1]
-        if re.match(r'^[A-Z]{5}\d{4}[A-Z]$', reversed_word):
+        if re.match(r'^[a-zA-Z]{5}\d{4}[a-zA-Z]$', reversed_word):
             return True
     return False
 
@@ -577,7 +577,7 @@ def _detect_incomplete_pan(text: str) -> bool:
     # Match PAN-like strings missing the last character only when PAN context exists.
     if not re.search(r'(?i)\bpan\b', text):
         return False
-    if re.search(r'\b[A-Z]{5}\d{4}\b', text):
+    if re.search(r'\b[a-zA-Z]{5}\d{4}\b', text):
         return True
     return False
 
@@ -597,11 +597,6 @@ def _detect_ocr_pan(text: str) -> bool:
     for raw_token in re.findall(r'\S+', text):
         compact_token = re.sub(r'[\s\-_.:]+', '', raw_token).translate(_OCR_CONFUSION_MAP).upper()
         if not re.fullmatch(r'[A-Z]{5}\d{4}[A-Z]', compact_token):
-            continue
-
-        # Keep the strict lowercase PAN test intact: plain lowercase words like
-        # "abcde1234f" should not become a PAN just because we uppercased them.
-        if raw_token == raw_token.lower() and not re.search(r'[lIoOsSgG\|]', raw_token):
             continue
 
         return True
@@ -628,7 +623,7 @@ def _detect_ocr_credit_card(text: str) -> bool:
 
 def _detect_ocr_aadhaar(text: str) -> bool:
     """Detect Aadhaar strings broken by spacing or OCR confusion."""
-    if not re.search(r'(?i)aadhaar|uidai', text):
+    if not re.search(r'(?i)aadhaar|aadhar|uidai', text):
         if not _has_ocr_noise(text):
             return False
         if text.count('.') >= 3:
@@ -673,14 +668,14 @@ def _detect_date(text: str) -> bool:
 
 def _detect_partial_aadhaar(text: str) -> bool:
     """Detect partial Aadhaar references (first 4 / last 4 digits) (bypass #4, #5)."""
-    # Only trigger if "aadhaar" keyword is nearby
-    if not re.search(r'(?i)aadhaar', text):
+    # Only trigger if "aadhaar" or "aadhar" keyword is nearby
+    if not re.search(r'(?i)aadhaar|aadhar', text):
         return False
     # First 4 digits: "aadhaar starts with 2345"
-    if re.search(r'(?i)aadhaar.*\b(?:starts|begins|first).*?\b([2-9]\d{3})\b', text):
+    if re.search(r'(?i)(?:aadhaar|aadhar).*\b(?:starts|begins|first).*?\b([2-9]\d{3})\b', text):
         return True
     # Last 4 digits: "aadhaar ends with 0123"
-    if re.search(r'(?i)aadhaar.*\b(?:ends|last).*?\b(\d{4})\b', text):
+    if re.search(r'(?i)(?:aadhaar|aadhar).*\b(?:ends|last).*?\b(\d{4})\b', text):
         return True
     return False
 

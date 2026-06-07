@@ -48,6 +48,10 @@ class TestAadhaarDetection:
         result = detect_sensitive("Not Aadhaar: 123456789012")
         assert "AADHAAR" not in result["detections"]
 
+    def test_aadhaar_spelling_variation(self):
+        result = detect_sensitive("My Aadhar: 2345 6789 0123")
+        assert "AADHAAR" in result["detections"]
+
 
 # ---------------------------------------------------------------------------
 # PAN detection tests
@@ -65,9 +69,9 @@ class TestPANDetection:
         assert "PAN" in result["detections"]
         assert result["block"] is True
 
-    def test_pan_lowercase_invalid(self):
+    def test_pan_lowercase_valid(self):
         result = detect_sensitive("My pan is abcde1234f")
-        assert "PAN" not in result["detections"]
+        assert "PAN" in result["detections"]
 
     def test_pan_in_sentence(self):
         result = detect_sensitive("Please use PAN ABCDE5678Z for the tax filing")

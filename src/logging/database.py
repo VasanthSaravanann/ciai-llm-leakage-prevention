@@ -6,6 +6,8 @@ from src.config import settings
 
 # Respect the DATABASE_URL provided in settings. For SQLite keep same-thread disabled.
 DATABASE_URL = settings.DATABASE_URL
+if DATABASE_URL.startswith("sqlite+aiosqlite"):
+    DATABASE_URL = DATABASE_URL.replace("sqlite+aiosqlite:///", "sqlite:///")
 
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
