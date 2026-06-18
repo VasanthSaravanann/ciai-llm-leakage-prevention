@@ -142,8 +142,8 @@ export interface PatternDef {
 }
 
 export const PII_PATTERNS: PatternDef[] = [
-  { type: "AADHAAR", re: /\b\d{4}\s?\d{4}\s?\d{4}\b/g, severity: "critical" },
-  { type: "PAN", re: /\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/g, severity: "critical" },
+  { type: "AADHAAR", re: /\b[2-9]\d{3}[\s.\-]?\d{4}[\s.\-]?\d{4}\b/g, severity: "critical" },
+  { type: "PAN", re: /(?<![a-zA-Z0-9])[\.]?[a-zA-Z]{5}[\.]?[0-9]{4}[\.]?[a-zA-Z]{1}[\.]?(?![a-zA-Z0-9])/gi, severity: "critical" },
   { type: "VOTER_ID", re: /\b[A-Z]{3}[0-9]{7}\b/g, severity: "high" },
   {
     type: "DRIVING_LICENSE",
@@ -234,7 +234,7 @@ export function runPipeline(raw: string): PipelineResult {
   const s5 = compressDelimiters(s4);
   steps.push({ name: "Delimiters compressed", output: s5, note: "Stripped whitespace/.-_" });
 
-  const hits = [...findHits(s4), ...findHits(s5)];
+  const hits = [...findHits(s2), ...findHits(s4)];
   // Dedupe by type+value
   const seen = new Set<string>();
   const uniqHits = hits.filter((h) => {
