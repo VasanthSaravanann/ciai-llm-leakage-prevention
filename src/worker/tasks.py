@@ -7,7 +7,7 @@ from src.config import settings
 from src.logging.encryption import encrypt as _encrypt
 import base64
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 @worker.task(name='ciai.detect_and_log')
@@ -48,7 +48,7 @@ def purge_old_logs():
     """Delete logs older than the configured retention period."""
     db = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=int(settings.RETENTION_DAYS))
+        cutoff = datetime.now(timezone.utc) - timedelta(days=int(settings.RETENTION_DAYS))
         # SQLAlchemy Core delete
         from sqlalchemy import delete
         delete_stmt = delete(AuditLog).where(AuditLog.timestamp < cutoff)

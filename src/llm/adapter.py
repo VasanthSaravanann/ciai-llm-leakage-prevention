@@ -14,9 +14,8 @@ OPENAI_BASE_URL = os.environ.get('OPENAI_BASE_URL', 'https://api.openai.com')
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, max=8), retry=retry_if_exception_type(Exception))
 def send_prompt(prompt: str) -> str:
     if LLM_PROVIDER == 'mock' or not LLM_API_KEY:
-        # Mock provider: useful for offline smoke tests and trainer runs
-        resp = requests.post('https://httpbin.org/post', json={'prompt': prompt}, timeout=10)
-        return resp.text
+        # Mock provider: return canned response without sending data externally
+        return '{"choices":[{"message":{"content":"[MOCK] I received your prompt and processed it locally."}}]}'
     # Provider specific implementations
     headers = {'Authorization': f'Bearer {LLM_API_KEY}', 'Content-Type': 'application/json'}
     if LLM_PROVIDER == 'openai':

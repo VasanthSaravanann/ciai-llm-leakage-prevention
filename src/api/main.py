@@ -1,5 +1,7 @@
 from collections import deque
+import hashlib
 import threading
+import time
 
 from src.config import get_api_keys
 from src.config import settings
@@ -381,9 +383,6 @@ async def detect(request: Request, req: DetectRequest, background_tasks: Backgro
     tenant_id = require_tenant(request)
 
     # Compute fingerprint of the incoming text (sha256 hex) for auditing.
-    import hashlib
-    import time
-
     fingerprint = hashlib.sha256(req.text.encode("utf-8", errors="ignore")).hexdigest()
 
     detection_error = False
@@ -395,8 +394,6 @@ async def detect(request: Request, req: DetectRequest, background_tasks: Backgro
         # Detection engine failed. Respect gateway mode.
         gateway_mode = getattr(settings, 'GATEWAY_MODE', os.getenv('GATEWAY_MODE', 'fail_open'))
         if gateway_mode == 'fail_closed':
-            if DETECTION_ERROR_COUNTER:
-                DETECTION_ERROR_COUNTER.inc()
             raise HTTPException(status_code=503, detail='Detection subsystem unavailable (fail_closed)')
         # fail_open: allow request but mark as undetected
         result = {"detections": [], "block": False, "redact": False, "redacted_text": req.text, "severity": "none"}
@@ -473,8 +470,6 @@ async def log_event(
             req.severity = "high"
 
     # Compute fingerprint of the provided redacted prompt for lookup (do not store raw original)
-    import hashlib
-
     prompt_fingerprint = hashlib.sha256(sanitized_prompt.encode("utf-8", errors="ignore")).hexdigest()
 
     # Synchronous insert (returns ID immediately). If ENCRYPT_LOGS=1, encrypt and store ciphertext.

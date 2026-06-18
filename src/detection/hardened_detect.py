@@ -53,9 +53,9 @@ def normalize_input(text: str) -> str:
 # Regex Patterns
 # ---------------------------------------------------------------------------
 
-AADHAAR_PATTERN = r'\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b'
-AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-z][2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b'
-PAN_PATTERN = r'\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b'
+AADHAAR_PATTERN = r'\b[2-9]\d{3}[\s.\-]?\d{4}[\s.\-]?\d{4}\b'
+AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-zA-Z0][2-9]\d{3}[\s.\-]?\d{4}[\s.\-]?\d{4}\b'
+PAN_PATTERN = r'(?<![a-zA-Z0-9])[\.]?[a-zA-Z]{5}[\.]?[0-9]{4}[\.]?[a-zA-Z]{1}[\.]?(?![a-zA-Z0-9])'
 CREDIT_CARD_PATTERN = r'\b(?:\d[\s-]*?){13,19}\b'
 VOTER_ID_PATTERN = r'\b[A-Z]{3}\d{7}\b'
 DRIVING_LICENSE_PATTERN = r'\bDL[\s-]?\d{13,15}\b'
@@ -137,19 +137,23 @@ def _get_anonymizer():
         _anonymizer = AnonymizerEngine()
     return _anonymizer
 
-def _detect_base64_pii(text: str) -> list[str]:
+MAX_B64_DEPTH = 3
+
+def _detect_base64_pii(text: str, _depth: int = 0) -> list[str]:
+    if _depth >= MAX_B64_DEPTH:
+        return []
     detections = []
     for match in re.finditer(r'[A-Za-z0-9+/]{8,}={0,2}', text):
         try:
             decoded = base64.b64decode(match.group()).decode('utf-8', errors='ignore')
             if len(decoded) > 5:
-                sub = detect_sensitive(decoded)
+                sub = detect_sensitive(decoded, _depth=_depth + 1)
                 for d in sub['detections']:
                     if f"BASE64_{d}" not in detections: detections.append(f"BASE64_{d}")
-        except: pass
+        except Exception: pass
     return detections
 
-def detect_sensitive(text: str) -> dict:
+def detect_sensitive(text: str, _depth: int = 0) -> dict:
     if not text or not text.strip():
         return {"detections":[], "block":False, "redact":False, "redacted_text":text, "severity":"none"}
 
@@ -160,9 +164,9 @@ def detect_sensitive(text: str) -> dict:
         results = _get_analyzer().analyze(text=normalized, language='en')
         for r in results:
             if r.score >= 0.5: detections.append(r.entity_type)
-    except: pass
+    except Exception: pass
 
-    detections.extend(_detect_base64_pii(normalized))
+    detections.extend(_detect_base64_pii(normalized, _depth=_depth))
     detections = sorted(list(set(detections)))
     
     block = any(d in HIGH_SEVERITY_TYPES or d.startswith("BASE64_") for d in detections)

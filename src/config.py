@@ -1,5 +1,8 @@
 import os
+import logging
 from pydantic_settings import BaseSettings
+
+_logger = logging.getLogger('ciai.config')
 
 
 class Settings(BaseSettings):
@@ -80,6 +83,11 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.API_KEY == 'ciai-dev-key' and os.getenv('DEBUG', '0') != '1':
+    _logger.critical('API_KEY is still the default dev key! Set API_KEY env var for production.')
+if settings.JWT_SECRET_KEY == 'dev-jwt-secret' and os.getenv('DEBUG', '0') != '1':
+    _logger.critical('JWT_SECRET_KEY is still the default dev secret! Set JWT_SECRET_KEY env var for production.')
 
 # Helper: parsed list of API keys
 def get_api_keys():

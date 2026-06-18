@@ -6,7 +6,6 @@ configured, that will be used; otherwise we fall back to a local Fernet key
 for development only.
 """
 from typing import Tuple
-from base64 import b64encode, b64decode
 from src.secrets.manager import get_secrets_manager
 
 mgr = get_secrets_manager()
@@ -24,23 +23,11 @@ def encrypt(plaintext: bytes) -> Tuple[str, bytes]:
     When backed by KMS/Secrets Manager the key_id may be an identifier; for
     local fallback we return 'local'.
     """
-    try:
-        f = _get_fernet()
-        ct = f.encrypt(plaintext)
-        return ('local', ct)
-    except Exception:
-        # Best-effort fallback
-        from cryptography.fernet import Fernet
-        _F = Fernet(Fernet.generate_key())
-        return ('local', _F.encrypt(plaintext))
+    f = _get_fernet()
+    ct = f.encrypt(plaintext)
+    return ('local', ct)
 
 
 def decrypt(ciphertext_blob: bytes) -> bytes:
-    try:
-        f = _get_fernet()
-        return f.decrypt(ciphertext_blob)
-    except Exception:
-        # try direct Fernet decode fallback
-        from cryptography.fernet import Fernet
-        _F = Fernet(Fernet.generate_key())
-        return _F.decrypt(ciphertext_blob)
+    f = _get_fernet()
+    return f.decrypt(ciphertext_blob)

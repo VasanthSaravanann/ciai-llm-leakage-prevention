@@ -5,15 +5,15 @@ Intercepts LLM API requests, analyzes them for sensitive data,
 and blocks or redacts before they reach the provider.
 """
 
+import os
 import json
 import logging
-import asyncio
 import httpx
 from mitmproxy import http
 
 # Configuration
-CIAI_API_URL = "http://localhost:8000"
-API_KEY = "ciai-dev-key"  # Matches settings.API_KEY
+CIAI_API_URL = os.getenv("CIAI_API_URL", "http://localhost:8000")
+API_KEY = os.getenv("API_KEY", "ciai-dev-key")
 TARGET_HOSTS = ["api.openai.com", "api.anthropic.com"]
 TARGET_PATH = "/v1/chat/completions"
 
@@ -82,28 +82,6 @@ class CIAIInterceptor:
 
         except Exception as e:
             logger.error(f"Interceptor error: {str(e)}")
-
-    def _log_event(self, flow: http.HTTPFlow, result: dict, action: str) -> None:
-        """
-        Record the event in the audit log via the /log endpoint.
-        """
-        try:
-            log_data = {
-                "user_id": flow.client_conn.address[0],
-                "redacted_prompt": result.get("redacted_text", "Blocked request"),
-                "detection_types": result.get("detections", []),
-                "action": action,
-                "severity": result.get("severity", "low")
-            }
-            
-            requests.post(
-                f"{CIAI_API_URL}/log",
-                json=log_data,
-                headers={"X-API-KEY": API_KEY},
-                timeout=2
-            )
-        except Exception as e:
-            logger.error(f"Failed to log event to CIAI API: {str(e)}")
 
     async def response(self, flow: http.HTTPFlow) -> None:
         """Intercept LLM responses and run output-side moderation."""

@@ -11,6 +11,7 @@ Features:
 import os
 import logging
 import time
+import html
 from collections import defaultdict
 from typing import Optional
 
@@ -59,42 +60,48 @@ def _record_alert(recipient: str):
 
 def _build_alert_html(entry: dict) -> str:
     """Build HTML email body from audit log entry."""
+    safe_user_id = html.escape(str(entry.get('user_id', 'N/A')))
+    safe_severity = html.escape(str(entry.get('severity', 'N/A')))
+    safe_detection_types = html.escape(str(entry.get('detection_types', 'N/A')))
+    safe_action_taken = html.escape(str(entry.get('action_taken', 'N/A')))
+    safe_timestamp = html.escape(str(entry.get('timestamp', 'N/A')))
+    safe_redacted_prompt = html.escape(str(entry.get('redacted_prompt', 'N/A')))
     return f"""
     <html>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px;">
-        <h2 style="color: #dc2626; margin-top: 0;">🚨 CIAI Alert: Sensitive Data Detected</h2>
+        <h2 style="color: #dc2626; margin-top: 0;">CIAI Alert: Sensitive Data Detected</h2>
 
         <table style="border-collapse: collapse; width: 100%; max-width: 600px;">
             <tr>
                 <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e5e7eb;">User ID</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{entry.get('user_id', 'N/A')}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{safe_user_id}</td>
             </tr>
             <tr>
                 <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e5e7eb;">Severity</td>
                 <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">
                     <span style="background: {'#fecaca' if entry.get('severity') == 'high' else '#fef3c7'};
                                  padding: 2px 8px; border-radius: 4px; font-weight: bold;">
-                        {entry.get('severity', 'N/A').upper()}
+                        {safe_severity.upper()}
                     </span>
                 </td>
             </tr>
             <tr>
                 <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e5e7eb;">Detection Types</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{entry.get('detection_types', 'N/A')}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{safe_detection_types}</td>
             </tr>
             <tr>
                 <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e5e7eb;">Action Taken</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{entry.get('action_taken', 'N/A').upper()}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{safe_action_taken.upper()}</td>
             </tr>
             <tr>
                 <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e5e7eb;">Timestamp</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{entry.get('timestamp', 'N/A')}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">{safe_timestamp}</td>
             </tr>
         </table>
 
         <h3 style="margin-top: 24px;">Redacted Prompt</h3>
         <pre style="background: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb;
-                     white-space: pre-wrap; word-break: break-word; max-width: 600px;">{entry.get('redacted_prompt', 'N/A')}</pre>
+                     white-space: pre-wrap; word-break: break-word; max-width: 600px;">{safe_redacted_prompt}</pre>
 
         <p style="color: #6b7280; margin-top: 24px; font-size: 12px;">
             This alert was sent by the CIAI LLM Data Leakage Prevention system.<br>
@@ -126,7 +133,7 @@ Redacted Prompt:
 """
 
 
-async def send_alert_email(entry: dict, recipient: Optional[str] = None) -> bool:
+def send_alert_email(entry: dict, recipient: Optional[str] = None) -> bool:
     """
     Send an alert email for a high-severity detection.
 
@@ -148,27 +155,24 @@ async def send_alert_email(entry: dict, recipient: Optional[str] = None) -> bool
         return False
 
     try:
-        import aiosmtplib
+        import smtplib
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
 
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"🚨 CIAI Alert: {entry.get('severity', 'HIGH').upper()} — {entry.get('detection_types', 'Unknown')}"
+        msg["Subject"] = f"CIAI Alert: {entry.get('severity', 'HIGH').upper()} -- {entry.get('detection_types', 'Unknown')}"
         msg["From"] = FROM_EMAIL
         msg["To"] = recipient
 
-        # Attach both plain text and HTML
         text_part = MIMEText(_build_alert_text(entry), "plain", "utf-8")
         html_part = MIMEText(_build_alert_html(entry), "html", "utf-8")
         msg.attach(text_part)
         msg.attach(html_part)
 
-        # Send via async SMTP (aiosmtplib 5.x uses SMTP class)
-        smtp = aiosmtplib.SMTP(hostname=SMTP_HOST, port=SMTP_PORT, start_tls=True)
-        await smtp.connect()
-        await smtp.login(SMTP_USER, SMTP_PASS)
-        await smtp.send_message(msg)
-        await smtp.quit()
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
 
         _record_alert(recipient)
         logger.info(f"Alert email sent to {recipient} for detection: {entry.get('detection_types')}")

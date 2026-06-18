@@ -150,8 +150,8 @@ AADHAAR_PATTERN = r'\b[2-9]\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b'
 AADHAAR_HOMOGLYPH_PATTERN = r'\b[a-zA-Z0][2-9]\d{3}[\s.-]?\d{4}[\s.-]?\d{4}\b'
 
 # PAN: 5 letters + 4 digits + 1 letter (case-insensitive)
-# e.g., ABCDE1234F or abcde1234f
-PAN_PATTERN = r'\b[a-zA-Z]{5}[0-9]{4}[a-zA-Z]{1}\b'
+# Handles dots at boundaries and between parts: .ABCDE1234F, ABCDE.1234.F, ABCDE1234F.
+PAN_PATTERN = r'(?<![a-zA-Z0-9])[\.]?[a-zA-Z]{5}[\.]?[0-9]{4}[\.]?[a-zA-Z]{1}[\.]?(?![a-zA-Z0-9])'
 
 # Credit card: 13-19 digits, possibly with spaces or dashes
 CREDIT_CARD_PATTERN = r'\b(?:\d[\s-]*?){13,19}\b'
@@ -255,17 +255,6 @@ def _luhn_check(digits_only: str) -> bool:
     return total % 10 == 0
 
 
-def _check_credit_cards(text: str) -> list[str]:
-    """Find credit card numbers and validate with Luhn check."""
-    found = []
-    for match in re.finditer(CREDIT_CARD_PATTERN, text):
-        candidate = match.group()
-        digits = re.sub(r'[\s-]', '', candidate)
-        if len(digits) >= 13 and len(digits) <= 19 and _luhn_check(digits):
-            found.append("CREDIT_CARD")
-    return found
-
-
 def _has_ocr_noise(text: str) -> bool:
     return bool(re.search(r'[lIoOsSgG\|]', text) or re.search(r'[\s\-_.]', text))
 
@@ -299,8 +288,8 @@ def _check_regex_patterns(text: str) -> list[str]:
     # Aadhaar - additional check: must not be repeating digits like 4444 4444 4444 (VULN-CC-CLASH)
     for match in re.finditer(AADHAAR_PATTERN, text):
         candidate = match.group()
-        digits = re.sub(r'[\s-]', '', candidate)
-        if len(set(digits)) > 1 and _aadhaar_context_is_safe(text, match.start(), match.end()): # Basic heuristic to avoid fake sequences like 4444...
+        digits = re.sub(r'[\s.\-]', '', candidate)
+        if len(digits) == 12 and len(set(digits)) > 1 and _aadhaar_context_is_safe(text, match.start(), match.end()):
             detections.append("AADHAAR")
         elif candidate in text: # If it WAS actually intended as Aadhaar
              pass
@@ -510,7 +499,7 @@ def _detect_reversed_pan(text: str) -> bool:
     return False
 
 
-_LEET_MAP = {'3': 'E', '4': 'A', '1': 'I', '0': 'O', '5': 'S', '@': 'A', '$': 'S'}
+_LEET_PAN_MAP = {'3': 'E', '4': 'A', '1': 'I', '0': 'O', '5': 'S', '@': 'A', '$': 'S'}
 
 
 def _detect_leetspeak_pan(text: str) -> bool:
@@ -544,9 +533,9 @@ def _detect_leetspeak_pan(text: str) -> bool:
 
         # PAN format: LLLLLDDDDL — check with leet mapping
         upper_chars = [c.upper() for c in chars]
-        letter_part = ''.join(_LEET_MAP.get(upper_chars[i], upper_chars[i]) for i in range(5))
+        letter_part = ''.join(_LEET_PAN_MAP.get(upper_chars[i], upper_chars[i]) for i in range(5))
         digit_part = ''.join(upper_chars[5:9])
-        last_char = _LEET_MAP.get(upper_chars[9], upper_chars[9])
+        last_char = _LEET_PAN_MAP.get(upper_chars[9], upper_chars[9])
 
         if (re.match(r'^[A-Z]{5}$', letter_part) and
                 re.match(r'^\d{4}$', digit_part) and

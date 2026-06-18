@@ -1,5 +1,5 @@
 from typing import Tuple
-from src.detection.detect import detect_sensitive
+from src.detection.hardened_detect import detect_sensitive
 
 
 def moderate_response(response_text: str, tenant_id: str | None = None) -> Tuple[bool, str]:

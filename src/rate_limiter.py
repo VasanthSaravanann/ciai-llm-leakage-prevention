@@ -5,6 +5,8 @@ from typing import Optional
 import redis
 import logging
 
+from src.config import settings
+
 DEFAULT_QUOTA = int(os.getenv('DEFAULT_QUOTA_PER_MINUTE', '60'))
 DEFAULT_WINDOW = int(os.getenv('DEFAULT_QUOTA_WINDOW_SECONDS', '60'))
 
@@ -37,7 +39,7 @@ class RateLimiter:
         except Exception as e:
             # On Redis errors, respect GATEWAY_MODE: fail_closed (deny) or fail_open (allow)
             logging.exception("RateLimiter Redis error")
-            gateway_mode = os.getenv('GATEWAY_MODE', 'fail_closed')
+            gateway_mode = settings.GATEWAY_MODE
             if gateway_mode == 'fail_closed':
                 return False
             return True
