@@ -4,12 +4,12 @@ CIAI – LLM Data Leakage Prevention
 Live Deployment
 ---------------
 
-**LDOT Dashboard (Frontend):** https://ldot-ssr-2.vercel.app
+**LDOT Dashboard (Frontend):** https://ciai-llm-leakage-prevention.vercel.app
 
-- [Home](https://ldot-ssr-2.vercel.app) — Overview and quickstart
-- [Sandbox Simulator](https://ldot-ssr-2.vercel.app/simulator) — Test adversarial prompts in real time
-- [Metrics & Audit Logs](https://ldot-ssr-2.vercel.app/metrics) — Live security metrics
-- [Governance](https://ldot-ssr-2.vercel.app/governance) — Rate limits, hardening headers, alert routing
+- [Home](https://ciai-llm-leakage-prevention.vercel.app) — Overview and quickstart
+- [Sandbox Simulator](https://ciai-llm-leakage-prevention.vercel.app/simulator) — Test adversarial prompts in real time
+- [Metrics & Audit Logs](https://ciai-llm-leakage-prevention.vercel.app/metrics) — Live security metrics
+- [Governance](https://ciai-llm-leakage-prevention.vercel.app/governance) — Rate limits, hardening headers, alert routing
 
 Overview
 --------
