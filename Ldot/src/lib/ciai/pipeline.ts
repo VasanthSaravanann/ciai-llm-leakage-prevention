@@ -191,13 +191,26 @@ export const PII_PATTERNS: PatternDef[] = [
 // Severity policy — anything critical => block, otherwise redact.
 const BLOCK_TYPES = new Set(["AADHAAR", "PAN", "PASSPORT_IN", "CREDIT_CARD", "API_KEY"]);
 
-function findHits(text: string): PIIHit[] {
+function findHits(text: string, rawText?: string): PIIHit[] {
   const hits: PIIHit[] = [];
   for (const p of PII_PATTERNS) {
     p.re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = p.re.exec(text)) !== null) {
       hits.push({ type: p.type, value: m[0], start: m.index, end: m.index + m[0].length });
+    }
+  }
+  // Aadhaar: strip ALL non-digits from raw text, then check for 12-digit sequence
+  // Only if the raw text has 4-4-4 digit grouping with separators (Aadhaar format)
+  if (rawText && !hits.some(h => h.type === "AADHAAR")) {
+    const digitGroups = rawText.split(/[\s.\-÷:`!@#%^&*(),;/?\\|]+/).filter(g => /^\d+$/.test(g));
+    const isAadhaarFormat = digitGroups.length >= 2 && digitGroups.every(g => g.length === 4);
+    if (isAadhaarFormat) {
+      const digitsOnly = rawText.replace(/\D/g, "");
+      const aadhaarMatch = digitsOnly.match(/([2-9]\d{11})/);
+      if (aadhaarMatch) {
+        hits.push({ type: "AADHAAR", value: aadhaarMatch[1], start: -1, end: -1 });
+      }
     }
   }
   return hits;
@@ -252,7 +265,7 @@ export function runPipeline(raw: string): PipelineResult {
   const s5 = compressDelimiters(s4);
   steps.push({ name: "Delimiters compressed", output: s5, note: "Stripped all non-alphanumeric chars" });
 
-  const hits = [...findHits(s2), ...findHits(s4)];
+  const hits = [...findHits(s2, raw), ...findHits(s4), ...findHits(s5)];
   const seen = new Set<string>();
   const uniqHits = hits.filter((h) => {
     const k = `${h.type}:${h.value}`;
