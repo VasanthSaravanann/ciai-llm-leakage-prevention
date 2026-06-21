@@ -68,17 +68,38 @@ const HOMOGLYPH_MAP: Record<string, string> = {
   "７": "7",
   "８": "8",
   "９": "9",
+  // Common Cyrillic/Greek letter homoglyphs
+  "\u0391": "A", // Greek Α
+  "\u0392": "B", // Greek Β
+  "\u0395": "E", // Greek Ε
+  "\u0396": "Z", // Greek Ζ
+  "\u0397": "H", // Greek Η
+  "\u0399": "I", // Greek Ι
+  "\u039a": "K", // Greek Κ
+  "\u039c": "M", // Greek Μ
+  "\u039d": "N", // Greek Ν
+  "\u039f": "O", // Greek Ο
+  "\u03a1": "P", // Greek Ρ
+  "\u03a4": "T", // Greek Τ
+  "\u03a7": "X", // Greek Χ
+  "\u03bf": "o", // Greek ο
+  "\u03b5": "e", // Greek ε
 };
 
 const LEET_MAP: Record<string, string> = {
   "@": "a",
   "4": "a",
+  "!": "i",
+  "|": "i",
   "1": "i",
   "0": "o",
   "3": "e",
+  "€": "e",
   "5": "s",
+  "$": "s",
   "7": "t",
-  $: "s",
+  "+": "t",
+  "8": "b",
 };
 
 function stripZeroWidth(s: string): string {
@@ -101,7 +122,7 @@ function deLeet(s: string): string {
 }
 
 function compressDelimiters(s: string): string {
-  return s.replace(/[\s._-]/g, "");
+  return s.replace(/[^\w]/g, "");
 }
 
 const BASE64_RE = /^[A-Za-z0-9+/=]{12,}$/;
@@ -147,7 +168,7 @@ export const PII_PATTERNS: PatternDef[] = [
   { type: "VOTER_ID", re: /\b[A-Z]{3}[0-9]{7}\b/g, severity: "high" },
   {
     type: "DRIVING_LICENSE",
-    re: /\b[A-Z]{2}[-\s]?\d{2}[-\s]?\d{4}[-\s]?\d{7}\b/g,
+    re: /\b[A-Z]{2}\d{2}\d{4}\d{7}\b/g,
     severity: "high",
   },
   {
@@ -156,15 +177,15 @@ export const PII_PATTERNS: PatternDef[] = [
     severity: "high",
   },
   { type: "PASSPORT_IN", re: /\b[A-PR-WYa-pr-wy][1-9]\d\s?\d{4}[1-9]\b/g, severity: "critical" },
-  { type: "UPI", re: /\b[\w.-]{2,}@[a-zA-Z]{2,}\b/g, severity: "medium" },
+  { type: "EMAIL", re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, severity: "low" },
+  { type: "UPI", re: /\b[\w.-]{2,}@(okicici|ybl|sbi|paytm|okaxis|hdfcbank|icicibank|bob|upi|kvb|dbs|federal|axisbank|pnb|canara|indianbank|unionbank|iob|karurvyasa|city|standardchartered|kotak|yesbank|googlepay|phonepe|amazonpay|msidbi|jio|airtel|vi|bsnl)\b/gi, severity: "medium" },
   { type: "CREDIT_CARD", re: /\b(?:\d[ -]*?){13,16}\b/g, severity: "critical" },
   {
     type: "API_KEY",
     re: /\b(?:sk|pk|rk)_[A-Za-z0-9]{20,}\b|\bAKIA[0-9A-Z]{16}\b/g,
     severity: "critical",
   },
-  { type: "EMAIL", re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, severity: "low" },
-  { type: "PHONE_IN", re: /\b(?:\+91[\s-]?)?[6-9]\d{9}\b/g, severity: "medium" },
+  { type: "PHONE_IN", re: /\b(?:\+?91[\s\-]?)?0?[6-9]\d{4}[\s\-]?\d{5}\b/g, severity: "medium" },
 ];
 
 // Severity policy — anything critical => block, otherwise redact.
@@ -183,8 +204,6 @@ function findHits(text: string): PIIHit[] {
 }
 
 function redactRaw(raw: string, normHits: PIIHit[]): { redacted: string; types: string[] } {
-  // Run pattern matching against the RAW text too so we can replace cleanly
-  // in the user-visible form. Normalization-only hits get appended as notes.
   let redacted = raw;
   const types = new Set<string>();
   for (const p of PII_PATTERNS) {
@@ -194,7 +213,6 @@ function redactRaw(raw: string, normHits: PIIHit[]): { redacted: string; types: 
     });
   }
   for (const h of normHits) types.add(h.type);
-  // If normalization revealed extra hits not in raw, prepend a marker
   const onlyInNorm = normHits.filter((h) => !redacted.includes(`[${h.type}]`));
   if (onlyInNorm.length) {
     const extras = Array.from(new Set(onlyInNorm.map((h) => `[${h.type}]`))).join(" ");
@@ -232,10 +250,9 @@ export function runPipeline(raw: string): PipelineResult {
   });
 
   const s5 = compressDelimiters(s4);
-  steps.push({ name: "Delimiters compressed", output: s5, note: "Stripped whitespace/.-_" });
+  steps.push({ name: "Delimiters compressed", output: s5, note: "Stripped all non-alphanumeric chars" });
 
   const hits = [...findHits(s2), ...findHits(s4)];
-  // Dedupe by type+value
   const seen = new Set<string>();
   const uniqHits = hits.filter((h) => {
     const k = `${h.type}:${h.value}`;
@@ -264,7 +281,6 @@ export function runPipeline(raw: string): PipelineResult {
   };
 }
 
-// SHA-1ish lightweight origin hash (non-crypto, audit display only).
 export function hashOrigin(input: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
