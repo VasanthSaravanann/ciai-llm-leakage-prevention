@@ -131,7 +131,7 @@ export const PII_PATTERNS: PatternDef[] = [
   { type: "UPI", re: /\b[\w.\-+]{2,}@(okicici|okhdfcbank|oksbi|okaxis|okbob|ybl|paytm|icici|icicibank|hdfc|hdfcbank|bob|upi|kvb|dbs|federal|axis|axisbank|pnb|canara|indianbank|unionbank|iob|karurvyasa|city|standardchartered|kotak|kotakbank|yesbank|yes|googlepay|gpay|phonepe|amazonpay|msidbi|jio|airtel|vi|bsnl)\b/gi, severity: "medium" },
   { type: "CREDIT_CARD", re: /\b(?:\d[\s.\-—–/]*?){13,16}\b/g, severity: "critical" },
   { type: "API_KEY", re: /\b(?:sk|pk|rk)_[A-Za-z0-9]{20,}\b|\bAKIA[0-9A-Z]{16}\b/g, severity: "critical" },
-  { type: "PHONE_IN", re: /(?:\(?\+?91\)?[\s.\-]?)?\(?0\)?[\s.\-]?[6-9]\d{4}[\s.\-]?\d{5}/g, severity: "medium" },
+  { type: "PHONE_IN", re: /(?:\(?\+?91\)?[\s.\-]?)?(?:\(?0\))?[\s.\-]?[6-9]\d{4}[\s.\-]?\d{5}/g, severity: "medium" },
 ];
 
 const BLOCK_TYPES = new Set(["AADHAAR", "PAN", "PASSPORT_IN", "CREDIT_CARD", "API_KEY"]);
@@ -142,6 +142,8 @@ function findHits(text: string, rawText?: string): PIIHit[] {
     p.re.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = p.re.exec(text)) !== null) {
+      // Reject phone matches containing non-digit characters (Z, B, O, etc.)
+      if (p.type === "PHONE_IN" && /\D/.test(m[0].replace(/[\s.\-+()]/g, ""))) continue;
       hits.push({ type: p.type, value: m[0], start: m.index, end: m.index + m[0].length });
     }
   }
