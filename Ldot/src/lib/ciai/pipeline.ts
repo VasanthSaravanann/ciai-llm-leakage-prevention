@@ -32,58 +32,70 @@ export interface PipelineResult {
 const ZERO_WIDTH = /\u200b|\u200c|\u200d|\u2060|\uFEFF/g;
 
 const HOMOGLYPH_MAP: Record<string, string> = {
-  // Cyrillic / Greek / fullwidth lookalikes -> ASCII
-  а: "a",
-  А: "A",
-  е: "e",
-  Е: "E",
-  о: "o",
-  О: "O",
-  р: "p",
-  Р: "P",
-  с: "c",
-  С: "C",
-  у: "y",
-  У: "Y",
-  х: "x",
-  Х: "X",
-  і: "i",
-  І: "I",
-  ј: "j",
-  Ј: "J",
-  ѕ: "s",
-  Ѕ: "S",
-  κ: "k",
-  Κ: "K",
-  ν: "v",
-  Ν: "N",
+  // Cyrillic lowercase
+  "\u0430": "a", "\u0431": "b", "\u0432": "v", "\u0433": "g", "\u0434": "d",
+  "\u0435": "e", "\u0436": "zh", "\u0437": "z", "\u0438": "i", "\u0439": "y",
+  "\u043a": "k", "\u043b": "l", "\u043c": "m", "\u043d": "n", "\u043e": "o",
+  "\u043f": "p", "\u0440": "r", "\u0441": "c", "\u0442": "t", "\u0443": "y",
+  "\u0444": "f", "\u0445": "x", "\u0446": "ts", "\u0447": "ch", "\u0448": "sh",
+  "\u0449": "shch", "\u044a": "soft", "\u044b": "y", "\u044c": "soft",
+  "\u044d": "e", "\u044e": "yu", "\u044f": "ya",
+  // Cyrillic uppercase
+  "\u0410": "A", "\u0411": "B", "\u0412": "B", "\u0413": "G", "\u0414": "D",
+  "\u0415": "E", "\u0416": "Zh", "\u0417": "Z", "\u0418": "I", "\u0419": "Y",
+  "\u041a": "K", "\u041b": "L", "\u041c": "M", "\u041d": "H", "\u041e": "O",
+  "\u041f": "P", "\u0420": "P", "\u0421": "C", "\u0422": "T", "\u0423": "Y",
+  "\u0424": "F", "\u0425": "X", "\u0426": "Ts", "\u0427": "Ch", "\u0428": "Sh",
+  "\u0429": "Shch", "\u042a": "Hard", "\u042b": "Y", "\u042c": "Soft",
+  "\u042d": "E", "\u042e": "Yu", "\u042f": "Ya",
+  // Greek lowercase
+  "\u03b1": "a", "\u03b2": "b", "\u03b3": "g", "\u03b4": "d", "\u03b5": "e",
+  "\u03b6": "z", "\u03b7": "h", "\u03b8": "th", "\u03b9": "i", "\u03ba": "k",
+  "\u03bb": "l", "\u03bc": "m", "\u03bd": "n", "\u03be": "x", "\u03bf": "o",
+  "\u03c0": "p", "\u03c1": "r", "\u03c2": "s", "\u03c3": "s", "\u03c4": "t",
+  "\u03c5": "u", "\u03c6": "ph", "\u03c7": "ch", "\u03c8": "ps", "\u03c9": "o",
+  // Greek uppercase
+  "\u0391": "A", "\u0392": "B", "\u0393": "G", "\u0394": "D", "\u0395": "E",
+  "\u0396": "Z", "\u0397": "H", "\u0398": "Th", "\u0399": "I", "\u039a": "K",
+  "\u039b": "L", "\u039c": "M", "\u039d": "N", "\u039e": "X", "\u039f": "O",
+  "\u03a0": "P", "\u03a1": "P", "\u03a3": "S", "\u03a4": "T", "\u03a5": "Y",
+  "\u03a6": "Ph", "\u03a7": "X", "\u03a8": "Ps", "\u03a9": "O",
   // Fullwidth digits
-  "０": "0",
-  "１": "1",
-  "２": "2",
-  "３": "3",
-  "４": "4",
-  "５": "5",
-  "６": "6",
-  "７": "7",
-  "８": "8",
-  "９": "9",
-  // Common Cyrillic/Greek letter homoglyphs
-  "\u0391": "A", // Greek Α
-  "\u0392": "B", // Greek Β
-  "\u0395": "E", // Greek Ε
-  "\u0396": "Z", // Greek Ζ
-  "\u0397": "H", // Greek Η
-  "\u0399": "I", // Greek Ι
-  "\u039a": "K", // Greek Κ
-  "\u039c": "M", // Greek Μ
-  "\u039d": "N", // Greek Ν
-  "\u039f": "O", // Greek Ο
-  "\u03a1": "P", // Greek Ρ
-  "\u03a4": "T", // Greek Τ
-  "\u03a7": "X", // Greek Χ
-  "\u03bf": "o", // Greek ο
-  "\u03b5": "e", // Greek ε
+  "０": "0", "１": "1", "２": "2", "３": "3", "４": "4",
+  "５": "5", "６": "6", "７": "7", "８": "8", "９": "9",
+  // Fullwidth letters
+  "Ａ": "A", "Ｂ": "B", "Ｃ": "C", "Ｄ": "D", "Ｅ": "E",
+  "Ｆ": "F", "Ｇ": "G", "Ｈ": "H", "Ｉ": "I", "Ｊ": "J",
+  "Ｋ": "K", "Ｌ": "L", "Ｍ": "M", "Ｎ": "N", "Ｏ": "O",
+  "Ｐ": "P", "Ｑ": "Q", "Ｒ": "R", "Ｓ": "S", "Ｔ": "T",
+  "Ｕ": "U", "Ｖ": "V", "Ｗ": "W", "Ｘ": "X", "Ｙ": "Y", "Ｚ": "Z",
+  // Special lookalikes
+  "\u0251": "a", // Latin ɑ → a
+  "\u0261": "g", // Latin ɡ → g
+  "\u0285": "r", // Latin ɹ → r
+  "\u029c": "H", // Latin ʜ → H
+  "\u0131": "i", // Latin dotless i → i
+  "\u017f": "s", // Latin long s → s
+  "\u2113": "l", // Script l → l
+  "\u2116": "N", // Numero sign → N
+  // Em dash / en dash / special dashes
+  "\u2013": "-", // en dash
+  "\u2014": "-", // em dash
+  "\u2015": "-", // horizontal bar
+  "\u2012": "-", // figure dash
+  "\u2010": "-", // hyphen
+  // Non-ASCII hyphens
+  "\u2011": "-", // non-breaking hyphen
+  "\u2212": "-", // minus sign
+  // Apostrophes / quotes
+  "\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'",
+  "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"',
+  "\u00ab": '"', "\u00bb": '"',
+  "\u2039": "'", "\u203a": "'",
+  // Underscore / slash variants
+  "\uff3f": "_", // fullwidth underscore
+  "\u2044": "/", // fraction slash
+  "\u2215": "/", // division slash
 };
 
 const LEET_MAP: Record<string, string> = {
@@ -163,29 +175,17 @@ export interface PatternDef {
 }
 
 export const PII_PATTERNS: PatternDef[] = [
-  { type: "AADHAAR", re: /\b[2-9]\d{3}[\s.\-]?\d{4}[\s.\-]?\d{4}\b/g, severity: "critical" },
-  { type: "PAN", re: /(?<![a-zA-Z0-9])[\.]?[a-zA-Z]{5}[\.]?[0-9]{4}[\.]?[a-zA-Z]{1}[\.]?(?![a-zA-Z0-9])/gi, severity: "critical" },
+  { type: "AADHAAR", re: /\b\d{3,4}[\s.\-_/—–]{0,3}\d{4}[\s.\-_/—–]{0,3}\d{4}\b/g, severity: "critical" },
+  { type: "PAN", re: /(?<![a-zA-Z0-9])[\.]?[a-zA-Z]{5}[\. \-_]?[0-9]{4}[\. \-_]?[a-zA-Z]{1}[\.]?(?![a-zA-Z0-9])/gi, severity: "critical" },
   { type: "VOTER_ID", re: /\b[A-Z]{3}[0-9]{7}\b/g, severity: "high" },
-  {
-    type: "DRIVING_LICENSE",
-    re: /\b[A-Z]{2}\d{2}\d{4}\d{7}\b/g,
-    severity: "high",
-  },
-  {
-    type: "GSTIN",
-    re: /\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b/g,
-    severity: "high",
-  },
+  { type: "DRIVING_LICENSE", re: /\b[A-Z]{2}[\s.\-_/—–]?\d{2}[\s.\-_/—–]?\d{4}[\s.\-_/—–]?\d{7}\b/g, severity: "high" },
+  { type: "GSTIN", re: /\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b/g, severity: "high" },
   { type: "PASSPORT_IN", re: /\b[A-PR-WYa-pr-wy][1-9]\d\s?\d{4}[1-9]\b/g, severity: "critical" },
   { type: "EMAIL", re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, severity: "low" },
-  { type: "UPI", re: /\b[\w.-]{2,}@(okicici|ybl|sbi|paytm|okaxis|hdfcbank|icicibank|bob|upi|kvb|dbs|federal|axisbank|pnb|canara|indianbank|unionbank|iob|karurvyasa|city|standardchartered|kotak|yesbank|googlepay|phonepe|amazonpay|msidbi|jio|airtel|vi|bsnl)\b/gi, severity: "medium" },
-  { type: "CREDIT_CARD", re: /\b(?:\d[ -]*?){13,16}\b/g, severity: "critical" },
-  {
-    type: "API_KEY",
-    re: /\b(?:sk|pk|rk)_[A-Za-z0-9]{20,}\b|\bAKIA[0-9A-Z]{16}\b/g,
-    severity: "critical",
-  },
-  { type: "PHONE_IN", re: /\b(?:\+?91[\s\-]?)?0?[6-9]\d{4}[\s\-]?\d{5}\b/g, severity: "medium" },
+  { type: "UPI", re: /\b[\w.\-+]{2,}@(okicici|okhdfcbank|oksbi|okaxis|okbob|ybl|paytm|icicibank|hdfcbank|bob|upi|kvb|dbs|federal|axisbank|pnb|canara|indianbank|unionbank|iob|karurvyasa|city|standardchartered|kotak|yesbank|googlepay|phonepe|amazonpay|msidbi|jio|airtel|vi|bsnl|okicici|okhdfcbank)\b/gi, severity: "medium" },
+  { type: "CREDIT_CARD", re: /\b(?:\d[\s.\-—–/]*?){13,16}\b/g, severity: "critical" },
+  { type: "API_KEY", re: /\b(?:sk|pk|rk)_[A-Za-z0-9]{20,}\b|\bAKIA[0-9A-Z]{16}\b/g, severity: "critical" },
+  { type: "PHONE_IN", re: /(?:\(?\+?91\)?[\s.\-]?)?\(?0\)?[\s.\-]?[6-9]\d{4}[\s.\-]?\d{5}/g, severity: "medium" },
 ];
 
 // Severity policy — anything critical => block, otherwise redact.
@@ -200,19 +200,66 @@ function findHits(text: string, rawText?: string): PIIHit[] {
       hits.push({ type: p.type, value: m[0], start: m.index, end: m.index + m[0].length });
     }
   }
-  // Aadhaar: strip ALL non-digits from raw text, then check for 12-digit sequence
-  // Only if the raw text has 4-4-4 digit grouping with separators (Aadhaar format)
+
+  // Aadhaar: strip ALL non-digits from raw text, check for 12-digit sequence
+  // Requires 4-4-4 digit grouping OR 12 consecutive digits (for spaced-out inputs)
   if (rawText && !hits.some(h => h.type === "AADHAAR")) {
-    const digitGroups = rawText.split(/[\s.\-÷:`!@#%^&*(),;/?\\|]+/).filter(g => /^\d+$/.test(g));
-    const isAadhaarFormat = digitGroups.length >= 2 && digitGroups.every(g => g.length === 4);
+    const digitGroups = rawText.split(/[\s.\-_/—–:`!@#%^&*(),;?\\|'+]+/).filter(g => /^\d+$/.test(g));
+    const totalDigits = digitGroups.join("").length;
+    const isAadhaarFormat =
+      (digitGroups.length >= 2 && digitGroups.every(g => g.length === 4)) ||
+      (totalDigits === 12 && digitGroups.length >= 1);
     if (isAadhaarFormat) {
       const digitsOnly = rawText.replace(/\D/g, "");
-      const aadhaarMatch = digitsOnly.match(/([2-9]\d{11})/);
+      const aadhaarMatch = digitsOnly.match(/(\d{12})/);
       if (aadhaarMatch) {
         hits.push({ type: "AADHAAR", value: aadhaarMatch[1], start: -1, end: -1 });
       }
     }
   }
+
+  // Phone: strip non-digits, check for 10-digit Indian mobile pattern
+  if (rawText && !hits.some(h => h.type === "PHONE_IN")) {
+    const digitsOnly = rawText.replace(/\D/g, "");
+    // Match: optional 91/0091 prefix + 10 digits starting with 6-9
+    const phoneMatch = digitsOnly.match(/(?:91|0091)?([6-9]\d{9})/);
+    if (phoneMatch && phoneMatch[1].length === 10) {
+      // Match if raw text has phone-like formatting or is exactly 10 digits
+      const isPlainDigits = /^\d{10}$/.test(digitsOnly) || /^\d{12}$/.test(digitsOnly);
+      const hasPhoneFormat = /[\+]/.test(rawText) || /\b\d{5}[\s.\-']\d{5}\b/.test(rawText) || /\b[6-9]\d{4}[\s.\-']\d{5}\b/.test(rawText);
+      if (isPlainDigits || hasPhoneFormat) {
+        hits.push({ type: "PHONE_IN", value: phoneMatch[0], start: -1, end: -1 });
+      }
+    }
+  }
+
+  // Driving License: strip non-alphanumeric, check for 2L+2D+4D+7D pattern
+  if (rawText && !hits.some(h => h.type === "DRIVING_LICENSE")) {
+    const stripped = rawText.replace(/[^A-Za-z0-9]/g, "");
+    const dlMatch = stripped.match(/^([A-Z]{2})(\d{2})(\d{4})(\d{7})$/i);
+    if (dlMatch) {
+      hits.push({ type: "DRIVING_LICENSE", value: stripped.toUpperCase(), start: -1, end: -1 });
+    }
+  }
+
+  // PAN: strip non-alphanumeric, check for 5L+4D+1L pattern
+  if (rawText && !hits.some(h => h.type === "PAN")) {
+    const stripped = rawText.replace(/[^A-Za-z0-9]/g, "");
+    const panMatch = stripped.match(/^([A-Za-z]{5})(\d{4})([A-Za-z]{1})$/);
+    if (panMatch) {
+      hits.push({ type: "PAN", value: stripped.toUpperCase(), start: -1, end: -1 });
+    }
+  }
+
+  // Email: handle spaced-out emails
+  if (rawText && !hits.some(h => h.type === "EMAIL")) {
+    const noSpaces = rawText.replace(/\s/g, "");
+    const emailMatch = noSpaces.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/);
+    if (emailMatch && !hits.some(h => h.type === "EMAIL")) {
+      hits.push({ type: "EMAIL", value: emailMatch[0], start: -1, end: -1 });
+    }
+  }
+
   return hits;
 }
 
@@ -265,7 +312,7 @@ export function runPipeline(raw: string): PipelineResult {
   const s5 = compressDelimiters(s4);
   steps.push({ name: "Delimiters compressed", output: s5, note: "Stripped all non-alphanumeric chars" });
 
-  const hits = [...findHits(s2, raw), ...findHits(s4), ...findHits(s5)];
+  const hits = [...findHits(s2, raw), ...findHits(s3), ...findHits(s4), ...findHits(s5)];
   const seen = new Set<string>();
   const uniqHits = hits.filter((h) => {
     const k = `${h.type}:${h.value}`;
