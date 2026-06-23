@@ -66,6 +66,15 @@ const HOMOGLYPH_MAP: Record<string, string> = {
   // Latin special lookalikes
   "\u0251":"a","\u0261":"g","\u0285":"r","\u029c":"H","\u0131":"i","\u017f":"s",
   "\u2113":"l","\u2116":"N",
+  // Phonetic / modifier letters
+  "\u1d05":"a","\u1d07":"e","\u029f":"l","\u026a":"i",
+  "\u1d1c":"u","\u028f":"y","\u1d22":"z",
+  // Fullwidth small letters
+  "\uff41":"a","\uff42":"b","\uff43":"c","\uff44":"d","\uff45":"e",
+  "\uff46":"f","\uff47":"g","\uff48":"h","\uff49":"i","\uff4a":"j",
+  "\uff4b":"k","\uff4c":"l","\uff4d":"m","\uff4e":"n","\uff4f":"o",
+  "\uff50":"p","\uff51":"q","\uff52":"r","\uff53":"s","\uff54":"t",
+  "\uff55":"u","\uff56":"v","\uff57":"w","\uff58":"x","\uff59":"y","\uff5a":"z",
   // Dashes → hyphen
   "\u2013":"-","\u2014":"-","\u2015":"-","\u2012":"-","\u2010":"-","\u2011":"-","\u2212":"-",
   // Quotes
@@ -80,7 +89,7 @@ const HOMOGLYPH_MAP: Record<string, string> = {
 };
 
 const LEET_MAP: Record<string, string> = {
-  "@":"a","4":"a","!":"i","|":"i","1":"i","0":"o","3":"e","€":"e",
+  "4":"a","!":"i","|":"i","1":"i","0":"o","3":"e","€":"e",
   "5":"s","$":"s","7":"t","+":"t","8":"b",
 };
 
@@ -127,8 +136,8 @@ export const PII_PATTERNS: PatternDef[] = [
   { type: "DRIVING_LICENSE", re: /\b[A-Z]{2}[\s.\-_/—–]?\d{2}[\s.\-_/—–]?\d{4}[\s.\-_/—–]?\d{7}\b/g, severity: "high" },
   { type: "GSTIN", re: /\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}\b/g, severity: "high" },
   { type: "PASSPORT_IN", re: /\b[A-PR-WYa-pr-wy][1-9]\d\s?\d{4}[1-9]\b/g, severity: "critical" },
-  { type: "EMAIL", re: /(?:"[^"]*"|\([^)]*\)|[A-Za-z0-9._%+-]+)@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, severity: "low" },
-  { type: "UPI", re: /\b[\w.\-+]{2,}@(okicici|okhdfcbank|oksbi|okaxis|okbob|ybl|paytm|icici|icicibank|hdfc|hdfcbank|bob|upi|kvb|dbs|federal|axis|axisbank|pnb|canara|indianbank|unionbank|iob|karurvyasa|city|standardchartered|kotak|kotakbank|yesbank|yes|googlepay|gpay|phonepe|amazonpay|msidbi|jio|airtel|vi|bsnl)\b/gi, severity: "medium" },
+  { type: "EMAIL", re: /(?:"[^"]*"|\([^)]*\)|[A-Za-z0-9._%+-]+)@[A-Za-z0-9.-]+\.[A-Za-z0-9]{2,}/g, severity: "low" },
+  { type: "UPI", re: /\b[\w.\-+]{2,}@(okicici|okhdfcbank|okhdfc|okicci|oksbi|okaxis|okbob|ybl|paytm|icici|icicibank|hdfc|hdfcbank|bob|upi|kvb|dbs|federal|axis|axisbank|pnb|canara|indianbank|unionbank|iob|karurvyasa|city|standardchartered|kotak|kotakbank|yesbank|yes|googlepay|gpay|phonepe|amazonpay|msidbi|jio|airtel|vi|bsnl)\b/gi, severity: "medium" },
   { type: "CREDIT_CARD", re: /\b(?:\d[\s.\-—–/]*?){13,16}\b/g, severity: "critical" },
   { type: "API_KEY", re: /\b(?:sk|pk|rk)_[A-Za-z0-9]{20,}\b|\bAKIA[0-9A-Z]{16}\b/g, severity: "critical" },
   { type: "PHONE_IN", re: /(?:\(?\+?91\)?[\s.\-]?)?(?:\(?0\))?[\s.\-]?[6-9]\d{4}[\s.\-]?\d{5}/g, severity: "medium" },
@@ -192,7 +201,7 @@ function findHits(text: string, rawText?: string): PIIHit[] {
   // Email: handle spaced-out emails
   if (!hits.some(h => h.type === "EMAIL")) {
     const noSpaces = src.replace(/\s/g, "");
-    const emailMatch = noSpaces.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    const emailMatch = noSpaces.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z0-9]{2,}/);
     if (emailMatch) {
       hits.push({ type: "EMAIL", value: emailMatch[0], start: -1, end: -1 });
     }
